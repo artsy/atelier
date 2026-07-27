@@ -25,6 +25,9 @@ export function formatRelativeTime(iso: string | undefined): string | null {
     return null;
   }
   const seconds = Math.round((Date.now() - then) / 1000);
+  if (seconds < 0) {
+    return null; // future timestamp (clock skew or bad metadata) — don't guess
+  }
   if (seconds < 60) {
     return relativeTimeFormatter.format(0, "minute"); // "now"-ish, but keep granularity coarse
   }

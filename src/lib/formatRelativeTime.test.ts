@@ -50,4 +50,10 @@ describe("formatRelativeTime", () => {
   it('rolls over to "last month" at the 30-day boundary', () => {
     expect(formatRelativeTime(secondsAgo(30 * 24 * 60 * 60))).toBe("last month");
   });
+
+  it("returns null for a future timestamp instead of guessing", () => {
+    expect(formatRelativeTime(secondsAgo(-1))).toBeNull();
+    expect(formatRelativeTime(secondsAgo(-60 * 60))).toBeNull();
+    expect(formatRelativeTime(secondsAgo(-40 * 24 * 60 * 60))).toBeNull();
+  });
 });
