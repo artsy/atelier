@@ -128,6 +128,8 @@
   // uploadedAt is a server-generated ISO timestamp (S3 object metadata) —
   // safe to trust, but still validated since it may be absent on
   // older/anonymous uploads. Returns null when it can't be parsed.
+  // Mirrors src/lib/formatRelativeTime.ts — that's the tested copy; update
+  // both (see the SLUG_PATTERN/deriveSlug comments up top for why).
   const RELATIVE_UNITS = [
     ["year", 365 * 24 * 60 * 60],
     ["month", 30 * 24 * 60 * 60],
