@@ -183,21 +183,28 @@
     return null;
   }
 
-  function showConfirm(slug, formData, uploadedBy, uploadedAt) {
+  // existingUrl is the server's own record of the live URL for this slug
+  // (built from its configured PUBLIC_DOMAIN — see src/routes/upload.ts),
+  // not derived from the client's hardcoded domain assumption. Falls back
+  // to plain (unlinked) slug text if the server ever omits it.
+  function showConfirm(slug, formData, existingUrl, uploadedBy, uploadedAt) {
     pendingFormData = formData;
     statusEl.hidden = false;
     statusEl.className = "status confirm";
     const attribution = formatAttribution(uploadedBy, uploadedAt);
-    const displayUrl = escapeHtml(`${slug}.artsy.dev`);
-    const href = `https://${displayUrl}`;
-    // slug is client-derived from SLUG_PATTERN, so it can't contain
-    // markup — no escaping needed for it specifically. attribution is
-    // already escaped by formatAttribution before it reaches this template.
+    // escapeHtml is a no-op on slug (client-derived from SLUG_PATTERN, so it
+    // can't contain markup) but real escaping on existingUrl, which is
+    // server-provided. attribution is already escaped by formatAttribution
+    // before it reaches this template.
+    const siteLabel = escapeHtml(existingUrl ? existingUrl.replace(/^https?:\/\//, "") : slug);
     // target="_blank" opens the existing site in a new tab (like the
     // post-upload success link) so checking it doesn't lose the pending
     // confirm state held in `pendingFormData`.
+    const siteLine = existingUrl
+      ? `<a href="${escapeHtml(existingUrl)}" target="_blank" rel="noopener">${siteLabel}</a>`
+      : siteLabel;
     statusEl.innerHTML = `
-      <span class="line">There is already a site at <a href="${href}" target="_blank" rel="noopener">${displayUrl}</a></span>
+      <span class="line">There is already a site at ${siteLine}</span>
       <span class="line">Overwrite?
       <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
       /
@@ -219,7 +226,7 @@
       return;
     }
     if (status === 409) {
-      showConfirm(slug, formData, data.uploadedBy, data.uploadedAt);
+      showConfirm(slug, formData, data.url, data.uploadedBy, data.uploadedAt);
       return;
     }
     showError(data.error || "Something went wrong — please retry.");
