@@ -74,6 +74,29 @@ export async function listPrefix(
   return keys;
 }
 
+export async function listSlugs(client: S3Client, bucket: string): Promise<string[]> {
+  const slugs: string[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const result = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Delimiter: "/",
+        ContinuationToken: continuationToken,
+      }),
+    );
+    for (const commonPrefix of result.CommonPrefixes ?? []) {
+      if (commonPrefix.Prefix) {
+        slugs.push(commonPrefix.Prefix.replace(/\/$/, ""));
+      }
+    }
+    continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return slugs;
+}
+
 export async function deletePrefix(
   client: S3Client,
   bucket: string,
