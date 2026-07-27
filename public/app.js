@@ -210,7 +210,7 @@
       /
       <button type="button" class="link-btn" data-action="confirm-no">No</button>
       </span>
-      ${attribution ? `<span class="line fine-print">The current site was ${attribution}</span>` : ""}
+      ${attribution ? `<span class="line provenance">The current site was ${attribution}</span>` : ""}
     `;
   }
 
