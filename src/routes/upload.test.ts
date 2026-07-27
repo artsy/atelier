@@ -273,6 +273,7 @@ describe("POST /upload", () => {
     expect(res.status).toBe(409);
     expect(res.body).toEqual({
       error: 'Slug "marketing-dashboard" already exists',
+      url: "https://marketing-dashboard.artsy.dev",
       uploadedBy: "roop@artsymail.com",
       uploadedAt: "2026-07-16T12:00:00.000Z",
     });

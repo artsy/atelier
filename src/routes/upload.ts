@@ -219,6 +219,7 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         });
         res.status(409).json({
           error: `Slug "${parsed.slug}" already exists`,
+          url: `https://${parsed.slug}.${publicDomain}`,
           ...(existing.uploadedBy !== undefined && { uploadedBy: existing.uploadedBy }),
           ...(existing.uploadedAt !== undefined && { uploadedAt: existing.uploadedAt }),
         });

@@ -115,19 +115,102 @@
     statusEl.innerHTML = `<span class="line">Your site is live!</span><a class="url" href="${url}" target="_blank" rel="noopener">${url}</a>`;
   }
 
-  function showConfirm(slug, formData) {
+  // uploadedBy is best-effort provenance, not verified identity — it may be
+  // an Access email, a free-text form value, "anonymous", or absent
+  // entirely. Shown in full (not just the local-part): Access spans two
+  // Google Workspace domains (Artsy and Artnet), so two people can share a
+  // local-part, and the domain is what disambiguates them. Returns null
+  // when there's nothing worth displaying.
+  function formatUploader(value) {
+    return !value || value === "anonymous" ? null : value;
+  }
+
+  // uploadedAt is a server-generated ISO timestamp (S3 object metadata) —
+  // safe to trust, but still validated since it may be absent on
+  // older/anonymous uploads. Returns null when it can't be parsed.
+  // Mirrors src/lib/formatRelativeTime.ts — that's the tested copy; update
+  // both (see the SLUG_PATTERN/deriveSlug comments up top for why).
+  const RELATIVE_UNITS = [
+    ["year", 365 * 24 * 60 * 60],
+    ["month", 30 * 24 * 60 * 60],
+    ["day", 24 * 60 * 60],
+    ["hour", 60 * 60],
+    ["minute", 60],
+  ];
+  const relativeTimeFormatter =
+    typeof Intl !== "undefined" && Intl.RelativeTimeFormat
+      ? new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+      : null;
+
+  function formatRelativeTime(iso) {
+    if (!iso || !relativeTimeFormatter) {
+      return null;
+    }
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) {
+      return null;
+    }
+    const seconds = Math.round((Date.now() - then) / 1000);
+    if (seconds < 0) {
+      return null; // future timestamp (clock skew or bad metadata) — don't guess
+    }
+    if (seconds < 60) {
+      return relativeTimeFormatter.format(0, "minute"); // "now"-ish, but keep granularity coarse
+    }
+    for (const [unit, unitSeconds] of RELATIVE_UNITS) {
+      if (seconds >= unitSeconds) {
+        return relativeTimeFormatter.format(-Math.floor(seconds / unitSeconds), unit);
+      }
+    }
+    return relativeTimeFormatter.format(-Math.floor(seconds / 60), "minute");
+  }
+
+  // Builds "Uploaded by roop 37 minutes ago", degrading gracefully when
+  // either half is unavailable, or omitting the line entirely when neither
+  // is. uploadedBy is untrusted free text — escaped, never used raw.
+  function formatAttribution(uploadedBy, uploadedAt) {
+    const who = formatUploader(uploadedBy);
+    const when = formatRelativeTime(uploadedAt);
+    if (who && when) {
+      return `uploaded by ${escapeHtml(who)} ${escapeHtml(when)}`;
+    }
+    if (who) {
+      return `uploaded by ${escapeHtml(who)}`;
+    }
+    if (when) {
+      return `uploaded ${escapeHtml(when)}`;
+    }
+    return null;
+  }
+
+  // existingUrl is the server's own record of the live URL for this slug
+  // (built from its configured PUBLIC_DOMAIN — see src/routes/upload.ts),
+  // not derived from the client's hardcoded domain assumption. Falls back
+  // to plain (unlinked) slug text if the server ever omits it.
+  function showConfirm(slug, formData, existingUrl, uploadedBy, uploadedAt) {
     pendingFormData = formData;
     statusEl.hidden = false;
     statusEl.className = "status confirm";
-    // slug is client-derived from SLUG_PATTERN, so it can't contain
-    // markup — no escaping needed for it specifically.
+    const attribution = formatAttribution(uploadedBy, uploadedAt);
+    // escapeHtml is a no-op on slug (client-derived from SLUG_PATTERN, so it
+    // can't contain markup) but real escaping on existingUrl, which is
+    // server-provided. attribution is already escaped by formatAttribution
+    // before it reaches this template.
+    const siteLabel = escapeHtml(existingUrl ? existingUrl.replace(/^https?:\/\//, "") : slug);
+    // target="_blank" opens the existing site in a new tab (like the
+    // post-upload success link) so checking it doesn't lose the pending
+    // confirm state held in `pendingFormData`.
+    const siteLine = existingUrl
+      ? `<a href="${escapeHtml(existingUrl)}" target="_blank" rel="noopener">${siteLabel}</a>`
+      : siteLabel;
     statusEl.innerHTML = `
-      <span class="line">There is already a site at ${slug}.artsy.dev</span>
+      <span class="line">There is already a site at ${siteLine}</span>
       <span class="line">Overwrite?
-        <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
-        /
-        <button type="button" class="link-btn" data-action="confirm-no">No</button>
+      <button type="button" class="link-btn" data-action="confirm-yes">Yes</button>
+      /
+      <button type="button" class="link-btn" data-action="confirm-no">No</button>
       </span>
+      ${attribution ? `<span class="line provenance">The current site was ${attribution}</span>` : ""}
     `;
   }
 
@@ -143,7 +226,7 @@
       return;
     }
     if (status === 409) {
-      showConfirm(slug, formData);
+      showConfirm(slug, formData, data.url, data.uploadedBy, data.uploadedAt);
       return;
     }
     showError(data.error || "Something went wrong — please retry.");
