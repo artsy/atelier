@@ -28,6 +28,32 @@ interface ParsedUpload {
 
 const CONFIRM_TRUE_VALUES = new Set(["true", "1", "on"]);
 
+// Long enough for any real email address, the form of value all three
+// uploader-identity sources (CF Access header, X-Requested-By, form field)
+// take in practice.
+const MAX_UPLOADER_LEN = 320;
+
+/**
+ * Uploader-identity sources are provenance metadata, not an authz signal
+ * (see the trust-boundary note in the POST /upload handler) — treat them as
+ * untrusted free text. Strips control characters (this value is round-tripped
+ * back out as a raw S3 object-metadata header by GET /check and the sites
+ * index) and caps length before a candidate value is considered, so a
+ * present-but-garbage header falls through to the next candidate in the
+ * precedence chain instead of winning with an empty value.
+ */
+export function sanitizeUploader(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const cleaned = value
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally stripping them
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, MAX_UPLOADER_LEN);
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
 // Attached to parseUpload's rejection so the outer handler can still log a
 // slug/size-bearing line for uploads that fail before or during extraction
 // (e.g. zip-slip, oversize). Applied via Object.assign rather than a wrapper
@@ -45,6 +71,7 @@ function logUpload(fields: {
   status: UploadStatus;
   files?: number;
   reason?: string;
+  uploadedBy?: string;
 }): void {
   console.log(JSON.stringify({ event: "upload", ...fields }));
 }
@@ -226,19 +253,26 @@ export function createUploadRouter(deps: UploadRouterDeps): Router {
         return;
       }
 
+      // Cloudflare Access sits in front of this origin and sets this header
+      // itself for real, interactive human logins (#52) — trusted. The
+      // atelier-mcp connector authenticates with a CF Access service token
+      // instead, so that header is never set for its requests; it forwards
+      // its own OAuth-verified identity via X-Requested-By. Both that header
+      // and the form field are untrusted, connector- or client-supplied
+      // provenance metadata — never used for authz, only for attribution.
+      const uploadedBy =
+        sanitizeUploader(req.get("Cf-Access-Authenticated-User-Email")) ||
+        sanitizeUploader(req.get("X-Requested-By")) ||
+        sanitizeUploader(parsed.uploadedBy) ||
+        "anonymous";
+
       logUpload({
         slug: parsed.slug,
         bytes: parsed.zipBytes,
         status: existing.exists ? "overwrite" : "upload",
         files: entries.length,
+        uploadedBy,
       });
-
-      // Only trustworthy once Cloudflare Access sits in front of this origin
-      // and sets this header itself (Milestone 2, see docs/PLAN.md); until
-      // then any client can spoof it, so it's provenance metadata only —
-      // never used for authz.
-      const uploadedBy =
-        req.get("Cf-Access-Authenticated-User-Email") || parsed.uploadedBy || "anonymous";
 
       // Delete-then-put per docs/PLAN.md's "replace, not merge" design. A
       // putFile failure mid-loop leaves the old content already gone and the
