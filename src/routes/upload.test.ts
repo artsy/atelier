@@ -6,7 +6,7 @@ import { invalidateSlug } from "../lib/cloudfront";
 import { deletePrefix, headIndex, putFile } from "../lib/s3";
 import { extractZip, ZipValidationError } from "../lib/zip";
 import { errorHandler } from "../middleware/errorHandler";
-import { createUploadRouter } from "./upload";
+import { createUploadRouter, sanitizeUploader } from "./upload";
 
 jest.mock("../lib/s3");
 // Keep the real ZipValidationError class — a plain jest.mock() automocks it
@@ -154,6 +154,7 @@ describe("POST /upload", () => {
       bytes: DEFAULT_ZIP_BUFFER.byteLength,
       status: "upload",
       files: 2,
+      uploadedBy: "anonymous",
     });
   });
 
@@ -306,6 +307,7 @@ describe("POST /upload", () => {
       bytes: DEFAULT_ZIP_BUFFER.byteLength,
       status: "overwrite",
       files: 2,
+      uploadedBy: "anonymous",
     });
   });
 
@@ -436,5 +438,109 @@ describe("POST /upload", () => {
       "access@artsymail.com",
       undefined,
     );
+  });
+
+  it("stamps the X-Requested-By header when no Access header is present", async () => {
+    const res = await request(buildApp())
+      .post("/upload")
+      .set("X-Requested-By", "connector-user@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .attach("zip", Buffer.from("PK\x03\x04fake"), "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "connector-user@artsymail.com",
+      undefined,
+    );
+    expect(lastUploadLog()).toMatchObject({ uploadedBy: "connector-user@artsymail.com" });
+  });
+
+  it("prefers the Cf-Access-Authenticated-User-Email header over X-Requested-By", async () => {
+    const res = await request(buildApp())
+      .post("/upload")
+      .set("Cf-Access-Authenticated-User-Email", "access@artsymail.com")
+      .set("X-Requested-By", "connector-user@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .attach("zip", Buffer.from("PK\x03\x04fake"), "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "access@artsymail.com",
+      undefined,
+    );
+  });
+
+  it("prefers X-Requested-By over the form uploadedBy field", async () => {
+    const res = await request(buildApp())
+      .post("/upload")
+      .set("X-Requested-By", "connector-user@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .field("uploadedBy", "roop@artsymail.com")
+      .attach("zip", Buffer.from("PK\x03\x04fake"), "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "connector-user@artsymail.com",
+      undefined,
+    );
+  });
+
+  it("caps an oversized X-Requested-By header before logging or storing it", async () => {
+    const oversized = `user-${"a".repeat(400)}@artsymail.com`;
+
+    const res = await request(buildApp())
+      .post("/upload")
+      .set("X-Requested-By", oversized)
+      .field("slug", "marketing-dashboard")
+      .attach("zip", Buffer.from("PK\x03\x04fake"), "site.zip");
+
+    expect(res.status).toBe(200);
+    const [, , , , , , storedUploadedBy] = mockPutFile.mock.calls[0] ?? [];
+    expect(storedUploadedBy).toHaveLength(320);
+    expect(oversized.startsWith(storedUploadedBy as string)).toBe(true);
+    expect(lastUploadLog().uploadedBy).toHaveLength(320);
+  });
+});
+
+// Node's own HTTP client refuses to transmit control characters (including
+// CR/LF) in a header value at all — `.set()` throws synchronously — so a
+// "malformed X-Requested-By" scenario can't be exercised through a real
+// request. Test the sanitizer directly instead.
+describe("sanitizeUploader", () => {
+  it("strips control characters", () => {
+    expect(sanitizeUploader("evil injectmoreend")).toBe("evilinjectmoreend");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(sanitizeUploader("  roop@artsymail.com  ")).toBe("roop@artsymail.com");
+  });
+
+  it("caps length at MAX_UPLOADER_LEN (320)", () => {
+    const oversized = `user-${"a".repeat(400)}@artsymail.com`;
+    expect(sanitizeUploader(oversized)).toHaveLength(320);
+  });
+
+  it("falls back to undefined for undefined, empty, or all-control-character input", () => {
+    expect(sanitizeUploader(undefined)).toBeUndefined();
+    expect(sanitizeUploader("")).toBeUndefined();
+    expect(sanitizeUploader(" ")).toBeUndefined();
   });
 });
