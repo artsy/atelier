@@ -114,3 +114,15 @@ body.drag-active {
   font-weight: inherit;
   cursor: pointer;
 }
+
+.gallery-link {
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.gallery-link a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+}
