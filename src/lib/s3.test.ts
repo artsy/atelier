@@ -6,7 +6,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { mockClient } from "aws-sdk-client-mock";
-import { deletePrefix, headIndex, listPrefix, putFile } from "./s3";
+import { deletePrefix, headIndex, listPrefix, listSlugs, putFile } from "./s3";
 
 const s3Mock = mockClient(S3Client);
 const client = new S3Client({ region: "us-east-1" });
@@ -84,6 +84,42 @@ describe("listPrefix", () => {
 
     const keys = await listPrefix(client, bucket, "empty-slug");
     expect(keys).toEqual([]);
+  });
+});
+
+describe("listSlugs", () => {
+  it("returns top-level slugs from CommonPrefixes", async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      CommonPrefixes: [{ Prefix: "gallery/" }, { Prefix: "hammer-price/" }],
+      IsTruncated: false,
+    });
+
+    const slugs = await listSlugs(client, bucket);
+    expect(slugs).toEqual(["gallery", "hammer-price"]);
+  });
+
+  it("follows continuation tokens across pages", async () => {
+    s3Mock
+      .on(ListObjectsV2Command)
+      .resolvesOnce({
+        CommonPrefixes: [{ Prefix: "gallery/" }],
+        IsTruncated: true,
+        NextContinuationToken: "token-1",
+      })
+      .resolvesOnce({
+        CommonPrefixes: [{ Prefix: "hammer-price/" }],
+        IsTruncated: false,
+      });
+
+    const slugs = await listSlugs(client, bucket);
+    expect(slugs).toEqual(["gallery", "hammer-price"]);
+  });
+
+  it("returns an empty array when the bucket has no slugs", async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({ CommonPrefixes: [], IsTruncated: false });
+
+    const slugs = await listSlugs(client, bucket);
+    expect(slugs).toEqual([]);
   });
 });
 
