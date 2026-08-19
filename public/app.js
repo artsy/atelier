@@ -53,6 +53,7 @@
   function deriveSlug(filename) {
     let slug = filename
       .replace(/\.zip$/i, "")
+      .replace(/\.html?$/i, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "");
