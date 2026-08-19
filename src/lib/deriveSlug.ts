@@ -11,10 +11,12 @@ export interface DeriveSlugResult extends SlugValidationResult {
 
 // Turns a dropped zip's filename into a candidate slug: strip the extension,
 // lowercase, collapse anything non-alphanumeric into hyphens, trim the ends,
+// remove superflous extension from *.html.zip for single-file zips,
 // then cap at the server's 63-char limit.
 export function deriveSlug(filename: string): DeriveSlugResult {
   let slug = filename
     .replace(/\.zip$/i, "")
+    .replace(/\.html?$/i, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
