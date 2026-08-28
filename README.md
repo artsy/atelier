@@ -81,6 +81,28 @@ This is currently a prototype-y Claude-crafted app with no build process and thu
 
 - This ensures that Atelier remains a purely internally facing system, for both reads and writes.
 
+## Automating uploads to Atelier
+
+While the typical upload flow is designed around a human using the drop-zone UI in a browser, we also have the ability to automate uploads programmatically.
+
+An IRL example of using `curl` for this:
+
+```sh
+curl -X POST https://atelier.artsy.dev/upload \
+  -H "CF-Access-Client-Id: $ATELIER_CF_ACCESS_CLIENT_ID" \
+  -H "CF-Access-Client-Secret: $ATELIER_CF_ACCESS_CLIENT_SECRET" \
+  -H "X-Requested-By: it@artsymail.com" \
+  -F slug=dbt-elementary-report -F confirm=true -F zip=@report.zip
+```
+
+- The `ATELIER_CF_ACCESS_CLIENT_ID` / `ATELIER_CF_ACCESS_CLIENT_SECRET` pair is a Cloudflare service token credential that allows applications to reach Atelier, since it is protected by Cloudflare Access. You can find this in the 1Password entry for Atelier.
+
+- The `X-Requested-By` email address is used for attribution metadata inside Atelier. Best to provide a valid email address, whether `it@artsymail.com` or an individual who is responsible for this particular Atelier site.
+
+- Update the `slug` and `zip` args to reflect your use case.
+
+- `confirm=true` is what allows the upload to overwrite existing site contents, which is likely what you want for a recurring automated upload.
+
 ## Contributing
 
 _TODO — perhaps after a KS where we decide which quirky Hackathon-esque development practices to leave in place, and which ones to jettison in favor of standard practices._
