@@ -14,7 +14,7 @@ While the motivation was to accommodate the increasing number of vibecoded creat
 - Production: https://atelier.artsy.dev
 - Staging: https://atelier-staging.artsy.dev
 - GitHub: https://github.com/artsy/atelier/
-- Point People: [@anandaroop][], [@artsyjian][]
+- Point People: [@anandaroop][]
 - CI/Deploys: [CircleCI][circleci]; PRs merged into `main` are
   automatically deployed to staging; PRs merged from `staging` into `release` are
   automatically deployed to production. [Start a deploy...][github-release]
@@ -86,7 +86,6 @@ This is currently a prototype-y Claude-crafted app with no build process and thu
 _TODO — perhaps after a KS where we decide which quirky Hackathon-esque development practices to leave in place, and which ones to jettison in favor of standard practices._
 
 [@anandaroop]: https://github.com/anandaroop
-[@artsyjian]: https://github.com/artsyjian
 [ux-screencap]: docs/images/atelier-ux.gif
 [architecture-diagram]: docs/images/atelier-architecture.png
 [tldraw-doc]: https://www.tldraw.com/p/jN9VTXW9jkSJsta6W8bd5?d=v125.179.2622.1522.page
