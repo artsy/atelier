@@ -83,7 +83,7 @@ This is currently a prototype-y Claude-crafted app with no build process and thu
 
 ## Automating uploads to Atelier
 
-While the typical upload flow is designed around a human using the drop-zone UI in a browser, we also have the ability to automate uploads programmatically.
+While the typical upload flow is designed around a human using the drop-zone UI in a browser, we also have the ability to automate uploads programmatically by emulating the form submission.
 
 An IRL example of using `curl` for this:
 
@@ -92,8 +92,8 @@ curl -X POST https://atelier.artsy.dev/upload \
   -H "CF-Access-Client-Id: $ATELIER_CF_ACCESS_CLIENT_ID" \
   -H "CF-Access-Client-Secret: $ATELIER_CF_ACCESS_CLIENT_SECRET" \
   -H "X-Requested-By: it@artsymail.com" \
-  -F slug=dbt-elementary-report
-  -F zip=@report.zip
+  -F slug=dbt-elementary-report \
+  -F zip=@report.zip \
   -F confirm=true
 ```
 
