@@ -14,7 +14,7 @@ While the motivation was to accommodate the increasing number of vibecoded creat
 - Production: https://atelier.artsy.dev
 - Staging: https://atelier-staging.artsy.dev
 - GitHub: https://github.com/artsy/atelier/
-- Point People: [@anandaroop][], [@artsyjian][]
+- Point People: [@anandaroop][]
 - CI/Deploys: [CircleCI][circleci]; PRs merged into `main` are
   automatically deployed to staging; PRs merged from `staging` into `release` are
   automatically deployed to production. [Start a deploy...][github-release]
