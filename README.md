@@ -92,7 +92,9 @@ curl -X POST https://atelier.artsy.dev/upload \
   -H "CF-Access-Client-Id: $ATELIER_CF_ACCESS_CLIENT_ID" \
   -H "CF-Access-Client-Secret: $ATELIER_CF_ACCESS_CLIENT_SECRET" \
   -H "X-Requested-By: it@artsymail.com" \
-  -F slug=dbt-elementary-report -F confirm=true -F zip=@report.zip
+  -F slug=dbt-elementary-report
+  -F zip=@report.zip
+  -F confirm=true
 ```
 
 - The `ATELIER_CF_ACCESS_CLIENT_ID` / `ATELIER_CF_ACCESS_CLIENT_SECRET` pair is a Cloudflare service token credential that allows applications to reach Atelier, since it is protected by Cloudflare Access. You can find this in the 1Password entry for Atelier.
