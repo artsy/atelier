@@ -4,7 +4,7 @@ replace with issue number from the Github Project at https://github.com/orgs/art
 
 This PR resolves #N
 
-### Description
+## Description
 
 <!--
 Info, implementation, how to get there, before & after screenshots & videos, follow-up work, etc
