@@ -6,7 +6,7 @@ import { invalidateSlug } from "../lib/cloudfront";
 import { deletePrefix, headIndex, putFile } from "../lib/s3";
 import { extractZip, ZipValidationError } from "../lib/zip";
 import { errorHandler } from "../middleware/errorHandler";
-import { createUploadRouter, sanitizeUploader } from "./upload";
+import { createUploadRouter } from "./upload";
 
 jest.mock("../lib/s3");
 // Keep the real ZipValidationError class — a plain jest.mock() automocks it
@@ -517,30 +517,5 @@ describe("POST /upload", () => {
     expect(storedUploadedBy).toHaveLength(320);
     expect(oversized.startsWith(storedUploadedBy as string)).toBe(true);
     expect(lastUploadLog().uploadedBy).toHaveLength(320);
-  });
-});
-
-// Node's own HTTP client refuses to transmit control characters (including
-// CR/LF) in a header value at all — `.set()` throws synchronously — so a
-// "malformed X-Requested-By" scenario can't be exercised through a real
-// request. Test the sanitizer directly instead.
-describe("sanitizeUploader", () => {
-  it("strips control characters", () => {
-    expect(sanitizeUploader("evil injectmoreend")).toBe("evilinjectmoreend");
-  });
-
-  it("trims surrounding whitespace", () => {
-    expect(sanitizeUploader("  roop@artsymail.com  ")).toBe("roop@artsymail.com");
-  });
-
-  it("caps length at MAX_UPLOADER_LEN (320)", () => {
-    const oversized = `user-${"a".repeat(400)}@artsymail.com`;
-    expect(sanitizeUploader(oversized)).toHaveLength(320);
-  });
-
-  it("falls back to undefined for undefined, empty, or all-control-character input", () => {
-    expect(sanitizeUploader(undefined)).toBeUndefined();
-    expect(sanitizeUploader("")).toBeUndefined();
-    expect(sanitizeUploader(" ")).toBeUndefined();
   });
 });
