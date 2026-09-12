@@ -1,0 +1,22 @@
+import { sanitizeUploader } from "./uploader";
+
+describe("sanitizeUploader", () => {
+  it("strips control characters", () => {
+    expect(sanitizeUploader("evil\x00inject\x1fmore\x7fend")).toBe("evilinjectmoreend");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(sanitizeUploader("  roop@artsymail.com  ")).toBe("roop@artsymail.com");
+  });
+
+  it("caps length at MAX_UPLOADER_LEN (320)", () => {
+    const oversized = `user-${"a".repeat(400)}@artsymail.com`;
+    expect(sanitizeUploader(oversized)).toHaveLength(320);
+  });
+
+  it("falls back to undefined for undefined, empty, or all-control-character input", () => {
+    expect(sanitizeUploader(undefined)).toBeUndefined();
+    expect(sanitizeUploader("")).toBeUndefined();
+    expect(sanitizeUploader("\x00\x01\x1f")).toBeUndefined();
+  });
+});
