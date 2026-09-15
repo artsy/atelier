@@ -16,6 +16,7 @@
     "format": "biome format --write .",
     "sites:list": "tsx src/scripts/listSites.ts",
     "sites:list:recent": "tsx src/scripts/listSites.ts --sort=recent",
+    "sites:delete": "./scripts/safely_delete.sh",
     "test": "jest",
     "test:watch": "jest --watch",
     "prepare": "husky"
