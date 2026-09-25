@@ -247,4 +247,261 @@ describe("POST /api/upload", () => {
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
   });
+
+  it("strips a Finder-compressed wrapping folder and its __MACOSX junk before writing to S3", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([
+        { path: "test-upload/index.html", content: Buffer.from("<html></html>") },
+        { path: "__MACOSX/test-upload/._index.html", content: Buffer.from("junk") },
+      ]),
+    );
+
+    const res = await postUpload({ slug: "test-upload" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.fileCount).toBe(1);
+    expect(mockPutFile).toHaveBeenCalledTimes(1);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "test-upload",
+      "index.html",
+      Buffer.from("<html></html>"),
+      "text/html",
+      "anonymous",
+      undefined,
+    );
+  });
+
+  it("aliases a sole root .html file as index.html and notes it in the response", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([
+        { path: "art-history-quiz.html", content: Buffer.from("<html>quiz</html>") },
+        { path: "assets/quiz.css", content: Buffer.from("body {}") },
+      ]),
+    );
+
+    const res = await postUpload({ slug: "art-quiz" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.fileCount).toBe(3);
+    expect(res.body.notes).toEqual([
+      "Used art-history-quiz.html as the homepage since no index.html was found",
+    ]);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "art-quiz",
+      "art-history-quiz.html",
+      Buffer.from("<html>quiz</html>"),
+      "text/html",
+      "anonymous",
+      undefined,
+    );
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "art-quiz",
+      "index.html",
+      Buffer.from("<html>quiz</html>"),
+      "text/html",
+      "anonymous",
+      { "aliased-from": "art-history-quiz.html" },
+    );
+  });
+
+  it("rejects a zip with multiple root-level .html files and no index.html", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([
+        { path: "page1.html", content: Buffer.from("a") },
+        { path: "page2.html", content: Buffer.from("b") },
+      ]),
+    );
+
+    const res = await postUpload({ slug: "marketing-dashboard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/index\.html/i);
+    expect(mockPutFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a zip that contains nothing but macOS junk", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([{ path: "__MACOSX/._index.html", content: Buffer.from("junk") }]),
+    );
+
+    const res = await postUpload({ slug: "marketing-dashboard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/no usable files/i);
+    expect(mockDeletePrefix).not.toHaveBeenCalled();
+    expect(mockPutFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a zip with no root index.html", async () => {
+    mockExtractZip.mockImplementation(
+      resolvingExtractZip([{ path: "assets/app.js", content: Buffer.from("console.log(1)") }]),
+    );
+
+    const res = await postUpload({ slug: "marketing-dashboard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/index\.html/i);
+    expect(mockHeadIndex).not.toHaveBeenCalled();
+    expect(mockDeletePrefix).not.toHaveBeenCalled();
+    expect(mockPutFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reserved slug with a 4xx and clear message", async () => {
+    const res = await postUpload({ slug: "admin" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/reserved/i);
+    expect(mockHeadIndex).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request with no zip file", async () => {
+    const res = await postUpload({ slug: "marketing-dashboard" }, null);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/zip/i);
+    expect(mockHeadIndex).not.toHaveBeenCalled();
+  });
+
+  it("replaces an existing slug when confirm is set", async () => {
+    mockHeadIndex.mockResolvedValue({
+      exists: true,
+      uploadedBy: "somebody@artsymail.com",
+      uploadedAt: "2026-07-16T12:00:00.000Z",
+    });
+
+    const res = await postUpload({ slug: "marketing-dashboard", confirm: "true" });
+
+    expect(res.status).toBe(200);
+    expect(mockDeletePrefix).toHaveBeenCalledWith(s3Client, bucket, "marketing-dashboard");
+    expect(mockPutFile).toHaveBeenCalledTimes(2);
+    expect(lastUploadLog()).toEqual({
+      event: "upload",
+      slug: "marketing-dashboard",
+      bytes: DEFAULT_ZIP_BUFFER.byteLength,
+      status: "overwrite",
+      files: 2,
+      uploadedBy: "anonymous",
+    });
+  });
+
+  it("stamps the form uploadedBy field when no Access header is present", async () => {
+    await postUpload({ slug: "marketing-dashboard", uploadedBy: "somebody@artsymail.com" });
+
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "somebody@artsymail.com",
+      undefined,
+    );
+  });
+
+  it("prefers the Cf-Access-Authenticated-User-Email header over the form field", async () => {
+    const res = await request(buildServer())
+      .post("/api/upload")
+      .set("Cf-Access-Authenticated-User-Email", "access@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .field("uploadedBy", "somebody@artsymail.com")
+      .attach("zip", DEFAULT_ZIP_BUFFER, "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "access@artsymail.com",
+      undefined,
+    );
+  });
+
+  it("stamps the X-Requested-By header when no Access header is present", async () => {
+    const res = await request(buildServer())
+      .post("/api/upload")
+      .set("X-Requested-By", "connector-user@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .attach("zip", DEFAULT_ZIP_BUFFER, "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "connector-user@artsymail.com",
+      undefined,
+    );
+    expect(lastUploadLog()).toMatchObject({ uploadedBy: "connector-user@artsymail.com" });
+  });
+
+  it("prefers the Cf-Access-Authenticated-User-Email header over X-Requested-By", async () => {
+    const res = await request(buildServer())
+      .post("/api/upload")
+      .set("Cf-Access-Authenticated-User-Email", "access@artsymail.com")
+      .set("X-Requested-By", "connector-user@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .attach("zip", DEFAULT_ZIP_BUFFER, "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "access@artsymail.com",
+      undefined,
+    );
+  });
+
+  it("prefers X-Requested-By over the form uploadedBy field", async () => {
+    const res = await request(buildServer())
+      .post("/api/upload")
+      .set("X-Requested-By", "connector-user@artsymail.com")
+      .field("slug", "marketing-dashboard")
+      .field("uploadedBy", "somebody@artsymail.com")
+      .attach("zip", DEFAULT_ZIP_BUFFER, "site.zip");
+
+    expect(res.status).toBe(200);
+    expect(mockPutFile).toHaveBeenCalledWith(
+      s3Client,
+      bucket,
+      "marketing-dashboard",
+      "index.html",
+      expect.anything(),
+      expect.anything(),
+      "connector-user@artsymail.com",
+      undefined,
+    );
+  });
+
+  it("caps an oversized X-Requested-By header before logging or storing it", async () => {
+    const oversized = `user-${"a".repeat(400)}@artsymail.com`;
+
+    const res = await request(buildServer())
+      .post("/api/upload")
+      .set("X-Requested-By", oversized)
+      .field("slug", "marketing-dashboard")
+      .attach("zip", DEFAULT_ZIP_BUFFER, "site.zip");
+
+    expect(res.status).toBe(200);
+    const [, , , , , , storedUploadedBy] = mockPutFile.mock.calls[0] ?? [];
+    expect(storedUploadedBy).toHaveLength(320);
+    expect(oversized.startsWith(storedUploadedBy as string)).toBe(true);
+    expect(lastUploadLog().uploadedBy).toHaveLength(320);
+  });
 });
