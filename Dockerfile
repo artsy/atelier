@@ -1,4 +1,4 @@
-FROM node:22.14.0-alpine
+FROM node:22.21.1-alpine
 
 # Add deploy user
 RUN adduser -D -g '' deploy
