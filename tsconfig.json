@@ -21,7 +21,8 @@
     "allowJs": true,
     "noEmit": true,
     "incremental": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "types": ["jest", "node", "@testing-library/jest-dom"]
   },
   "include": ["src", "next-env.d.ts"],
   "exclude": ["dist", "node_modules"]
