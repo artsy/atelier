@@ -1,0 +1,127 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: "ll-unica77", monospace;
+  /* fade the image toward black; raise/lower the alphas to taste */
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.65)), url(/atelier-crop.webp);
+  background-size: cover;
+  background-position: center;
+  transition: box-shadow 0.15s ease;
+}
+
+/* whole-viewport drop target highlight */
+body.drag-active {
+  box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.85);
+}
+
+/* off-screen until focused (skip-link pattern) — the keyboard/screen-reader
+   entry point to the file picker, kept out of the way of the hero visually */
+.browse-trigger {
+  position: absolute;
+  top: 1rem;
+  left: -9999px;
+  z-index: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: white;
+  color: #111;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.browse-trigger:focus {
+  left: 1rem;
+}
+
+.branding {
+  text-align: center;
+}
+
+.title {
+  font-size: 6rem;
+  font-weight: 400;
+  text-shadow: 0px 0px 20px rgba(0, 0, 0, 0.5);
+}
+
+.click-target {
+  display: inline-block;
+}
+
+.tagline {
+  font-weight: 700;
+  font-size: 2rem;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0);
+  text-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.tagline:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.status {
+  margin-top: 2rem;
+  font-weight: 700;
+  font-size: 2rem;
+  text-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+}
+
+.status .line,
+.status .url {
+  display: block;
+}
+
+.status .provenance {
+  margin-top: 1rem;
+  font-weight: 400;
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
+.status.error,
+.status.confirm {
+  color: #ffd166;
+}
+
+.status a,
+.status .link-btn {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+
+.status .link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+}
+
+.gallery-link {
+  margin-top: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.gallery-link a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+}
