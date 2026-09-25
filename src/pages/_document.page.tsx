@@ -33,6 +33,20 @@ export default class AtelierDocument extends Document {
     return (
       <Html lang="en">
         <Head>
+          <link
+            rel="preload"
+            href="https://webfonts.artsy.net/ll-unica77_regular.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="https://webfonts.artsy.net/ll-unica77_medium.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
           <link rel="stylesheet" href="https://webfonts.artsy.net/ll-unica77.css" />
         </Head>
         <body>
