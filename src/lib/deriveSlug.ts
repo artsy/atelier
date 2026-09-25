@@ -1,9 +1,11 @@
 import { type SlugValidationResult, validateSlug } from "./slug";
 
-// NOTE: public/app.js carries a hand-synced mirror of this logic (it's a
-// dependency-free classic script with no build step, so it can't import this
-// module). If you change the sanitization rules here, update that mirror —
-// and its comment pointing back here — too. See public/app.js's `deriveSlug`.
+// Isomorphic: no Node-only imports, safe to use from either the server or
+// the browser. NOTE: public/app.js carries a hand-synced mirror of this
+// logic (it's a dependency-free classic script with no build step, so it
+// can't import this module). If you change the sanitization rules here,
+// update that mirror — and its comment pointing back here — too. See
+// public/app.js's `deriveSlug`.
 
 export interface DeriveSlugResult extends SlugValidationResult {
   slug?: string;
