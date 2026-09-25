@@ -56,4 +56,20 @@ describe("formatRelativeTime", () => {
     expect(formatRelativeTime(secondsAgo(-60 * 60))).toBeNull();
     expect(formatRelativeTime(secondsAgo(-40 * 24 * 60 * 60))).toBeNull();
   });
+
+  it("degrades to null (rather than throwing) when Intl.RelativeTimeFormat is unavailable", () => {
+    // The module computes its formatter once at load time via a feature
+    // detect — carried over from public/app.js's copy, which needs it for
+    // older browsers. Force that branch by removing the API and
+    // re-importing the module fresh.
+    const original = Intl.RelativeTimeFormat;
+    delete (Intl as { RelativeTimeFormat?: unknown }).RelativeTimeFormat;
+
+    jest.resetModules();
+    const { formatRelativeTime: withoutIntl } = require("./formatRelativeTime");
+
+    expect(withoutIntl(secondsAgo(60))).toBeNull();
+
+    (Intl as { RelativeTimeFormat: typeof Intl.RelativeTimeFormat }).RelativeTimeFormat = original;
+  });
 });
