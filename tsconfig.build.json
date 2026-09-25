@@ -1,4 +1,8 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**"]
+  "compilerOptions": {
+    "noEmit": false,
+    "isolatedModules": false
+  },
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**", "src/pages", "src/styles"]
 }
