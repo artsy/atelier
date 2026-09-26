@@ -53,7 +53,7 @@ describe("GET /api/check", () => {
   it("returns the prior uploader and timestamp for an existing slug", async () => {
     mockHeadIndex.mockResolvedValue({
       exists: true,
-      uploadedBy: "roop@artsymail.com",
+      uploadedBy: "somebody@artsymail.com",
       uploadedAt: "2026-07-16T12:00:00.000Z",
     });
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
@@ -66,7 +66,7 @@ describe("GET /api/check", () => {
     expect(res._getStatusCode()).toBe(200);
     expect(res._getJSONData()).toEqual({
       exists: true,
-      uploadedBy: "roop@artsymail.com",
+      uploadedBy: "somebody@artsymail.com",
       uploadedAt: "2026-07-16T12:00:00.000Z",
     });
   });
