@@ -48,7 +48,7 @@ Simple, simple, simple!
 ### Github hygiene
 
 - When opening a PR or Issue on developer's behalf, also use the `Assisted-by:` trailer in the PR description
-- When posting a comment on developer's behalf, use a similar `Posted-by:` trailer in the comment
+- When posting a comment on developer's behalf, use a similar `Posted-by:` header at the top of the comment
 - When starting a task on the Github Project, always change its Status to In Progress. If you learn that a PR is merged, confirm the task's status is Done.
 
 ### Project board
