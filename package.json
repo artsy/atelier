@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:next": "next dev",
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/index.js",
+    "build": "next build",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
