@@ -1,5 +1,6 @@
 import Head from "next/head";
 import { useEffect, useRef, useState } from "react";
+import { HeroBackground } from "../components/HeroBackground";
 import { DEFAULT_MAX_UPLOAD_BYTES } from "../config";
 import { deriveSlug } from "../lib/deriveSlug";
 import { formatRelativeTime } from "../lib/formatRelativeTime";
@@ -252,6 +253,7 @@ export default function IndexPage() {
 
   return (
     <>
+      <HeroBackground />
       <Head>
         <title>Atelier</title>
       </Head>
