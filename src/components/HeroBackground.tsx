@@ -1,7 +1,9 @@
 import { createGlobalStyle } from "styled-components";
 
 export const HeroBackground = createGlobalStyle`
-  body {
+  html body {
+    min-height: 100vh;
+    height: auto;
     color: white;
     display: flex;
     align-items: center;

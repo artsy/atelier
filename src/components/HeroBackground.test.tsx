@@ -9,7 +9,7 @@ describe("HeroBackground", () => {
     const css = sheet.getStyleTags();
     sheet.seal();
 
-    expect(css).toContain("body{");
+    expect(css).toContain("html body{");
     expect(css).toContain("url(/atelier-crop.webp)");
     expect(css).toContain("display:flex");
     expect(css).toContain("color:white");
