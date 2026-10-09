@@ -3,44 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { HeroBackground } from "../components/HeroBackground";
 import { DEFAULT_MAX_UPLOAD_BYTES } from "../config";
 import { deriveSlug } from "../lib/deriveSlug";
-import { formatRelativeTime } from "../lib/formatRelativeTime";
-
-// uploadedBy is best-effort provenance, not verified identity — it may be
-// an Access email, a free-text form value, "anonymous", or absent
-// entirely. Shown in full (not just the local-part): Access spans two
-// Google Workspace domains (Artsy and Artnet), so two people can share a
-// local-part, and the domain is what disambiguates them. Returns null
-// when there's nothing worth displaying.
-function formatUploader(value: string | undefined): string | null {
-  return !value || value === "anonymous" ? null : value;
-}
-
-// Builds "uploaded by roop 37 minutes ago", degrading gracefully when
-// either half is unavailable, or omitting the line entirely when neither
-// is. React escapes all of this automatically since it's rendered as text,
-// never innerHTML — unlike app.js's copy, no manual escaping is needed.
-function formatAttribution(uploadedBy: string | undefined, uploadedAt: string | undefined) {
-  const who = formatUploader(uploadedBy);
-  const when = formatRelativeTime(uploadedAt);
-  if (who && when) {
-    return `uploaded by ${who} ${when}`;
-  }
-  if (who) {
-    return `uploaded by ${who}`;
-  }
-  if (when) {
-    return `uploaded ${when}`;
-  }
-  return null;
-}
-
-function isZipFile(file: File): boolean {
-  const name = file.name.toLowerCase();
-  if (name.endsWith(".zip")) {
-    return true;
-  }
-  return file.type === "application/zip" || file.type === "application/x-zip-compressed";
-}
+import { formatAttribution } from "../lib/formatAttribution";
+import { isZipFile } from "../lib/isZipFile";
 
 function safeJson(text: string): Record<string, unknown> | null {
   try {
