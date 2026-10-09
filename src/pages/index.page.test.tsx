@@ -1,77 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { FakeXhr, installFakeXhr, lastXhr, zipFile } from "../test/fakeXhr";
 import IndexPage from "./index.page";
 
-// jsdom has no real XHR network stack — a minimal fake standing in for
-// XMLHttpRequest, driven manually per test via `respond()`/`progress()`
-// rather than a library, since only status/responseText and the two
-// progress-adjacent events this page listens to are ever touched.
-class FakeXhr {
-  static instances: FakeXhr[] = [];
-
-  method = "";
-  url = "";
-  status = 0;
-  responseText = "";
-  upload = { addEventListener: jest.fn() };
-  private listeners: Record<string, Array<() => void>> = {};
-  sentBody: FormData | undefined;
-
-  constructor() {
-    FakeXhr.instances.push(this);
-  }
-
-  open(method: string, url: string) {
-    this.method = method;
-    this.url = url;
-  }
-
-  addEventListener(event: string, handler: () => void) {
-    if (!this.listeners[event]) {
-      this.listeners[event] = [];
-    }
-    this.listeners[event].push(handler);
-  }
-
-  send(body: FormData) {
-    this.sentBody = body;
-  }
-
-  respond(status: number, body: unknown) {
-    this.status = status;
-    this.responseText = JSON.stringify(body);
-    act(() => {
-      for (const handler of this.listeners.load ?? []) {
-        handler();
-      }
-    });
-  }
-
-  networkError() {
-    act(() => {
-      for (const handler of this.listeners.error ?? []) {
-        handler();
-      }
-    });
-  }
-}
-
-function lastXhr(): FakeXhr {
-  const xhr = FakeXhr.instances.at(-1);
-  if (!xhr) {
-    throw new Error("no XHR was constructed");
-  }
-  return xhr;
-}
-
-function zipFile(name = "my-site.zip") {
-  return new File(["PK\x03\x04fake"], name, { type: "application/zip" });
-}
-
-beforeEach(() => {
-  FakeXhr.instances = [];
-  // biome-ignore lint/suspicious/noExplicitAny: stubbing a browser global for the test, not production code
-  (globalThis as any).XMLHttpRequest = FakeXhr;
-});
+beforeEach(installFakeXhr);
 
 afterEach(() => {
   document.body.classList.remove("drag-active");
