@@ -13,4 +13,8 @@ export const HeroBackground = createGlobalStyle`
     background-size: cover;
     background-position: center;
   }
+
+  html body :focus-visible {
+    outline: revert;
+  }
 `;
