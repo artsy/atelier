@@ -9,9 +9,18 @@ describe("HeroBackground", () => {
     const css = sheet.getStyleTags();
     sheet.seal();
 
-    expect(css).toContain("body{");
+    expect(css).toContain("html body{");
     expect(css).toContain("url(/atelier-crop.webp)");
     expect(css).toContain("display:flex");
     expect(css).toContain("color:white");
+  });
+
+  it("restores the browser's focus ring on the hero, over palette's thin outline", () => {
+    const sheet = new ServerStyleSheet();
+    renderToString(sheet.collectStyles(<HeroBackground />));
+    const css = sheet.getStyleTags();
+    sheet.seal();
+
+    expect(css).toContain("html body :focus-visible{outline:revert;}");
   });
 });
