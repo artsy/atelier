@@ -2,6 +2,7 @@ import { createGlobalStyle } from "styled-components";
 
 export const HeroBackground = createGlobalStyle`
   body {
+    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
