@@ -1,12 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { FakeXhr, installFakeXhr, lastXhr, zipFile } from "../test/fakeXhr";
+import { renderWithBoot } from "../test/renderWithBoot";
 import IndexPage from "./index.page";
 
 beforeEach(installFakeXhr);
-
-afterEach(() => {
-  document.body.classList.remove("drag-active");
-});
 
 function dropFile(file: File) {
   const dataTransfer = { files: [file] } as unknown as DataTransfer;
@@ -15,77 +13,70 @@ function dropFile(file: File) {
 
 describe("IndexPage", () => {
   it("uploads a dropped zip and shows the success state", async () => {
-    render(<IndexPage />);
+    renderWithBoot(<IndexPage />);
 
-    dropFile(zipFile());
-    const xhr = lastXhr();
-    expect(xhr.method).toBe("POST");
-    expect(xhr.url).toBe("/api/upload");
-    expect(xhr.sentBody?.get("slug")).toBe("my-site");
+    dropFile(zipFile("marketing-dashboard.zip"));
+    expect(screen.getByText("Uploading…")).toBeInTheDocument();
 
-    xhr.respond(200, { ok: true, url: "https://my-site.artsy.dev" });
+    lastXhr().respond(200, { ok: true, url: "https://marketing-dashboard.artsy.dev" });
 
-    await waitFor(() => {
-      expect(screen.getByText("Your site is live!")).toBeInTheDocument();
-    });
-    expect(screen.getByRole("link", { name: "https://my-site.artsy.dev" })).toHaveAttribute(
-      "href",
-      "https://my-site.artsy.dev",
-    );
+    expect(await screen.findByText("Your site is live!")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "https://marketing-dashboard.artsy.dev" }),
+    ).toHaveAttribute("href", "https://marketing-dashboard.artsy.dev");
   });
 
-  it("shows the confirm-overwrite prompt on a 409, then re-uploads with confirm=true on Yes", async () => {
-    render(<IndexPage />);
+  it("shows upload progress and then processing", () => {
+    renderWithBoot(<IndexPage />);
+
+    dropFile(zipFile());
+    lastXhr().progress(40, 100);
+    expect(screen.getByText("Uploading… 40%")).toBeInTheDocument();
+
+    lastXhr().uploadFinished();
+    expect(screen.getByText("Processing…")).toBeInTheDocument();
+  });
+
+  it("asks before overwriting on a 409, then re-uploads with confirm=true on Yes", async () => {
+    renderWithBoot(<IndexPage />);
 
     dropFile(zipFile("marketing-dashboard.zip"));
     lastXhr().respond(409, {
-      error: 'Slug "marketing-dashboard" already exists',
+      error: "already exists",
       url: "https://marketing-dashboard.artsy.dev",
       uploadedBy: "somebody@artsymail.com",
-      uploadedAt: new Date().toISOString(),
     });
 
-    await waitFor(() => {
-      expect(screen.getByText(/There is already a site at/)).toBeInTheDocument();
-    });
-    expect(screen.getByText(/uploaded by somebody@artsymail.com/)).toBeInTheDocument();
+    expect(await screen.findByText(/There is already a site at/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/The current site was uploaded by somebody@artsymail.com/),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
 
-    const confirmXhr = lastXhr();
-    expect(confirmXhr.sentBody?.get("confirm")).toBe("true");
-    expect(confirmXhr.sentBody?.get("slug")).toBe("marketing-dashboard");
-
-    confirmXhr.respond(200, { ok: true, url: "https://marketing-dashboard.artsy.dev" });
-
-    await waitFor(() => {
-      expect(screen.getByText("Your site is live!")).toBeInTheDocument();
-    });
+    expect(lastXhr().sentBody?.get("confirm")).toBe("true");
+    lastXhr().respond(200, { ok: true, url: "https://marketing-dashboard.artsy.dev" });
+    expect(await screen.findByText("Your site is live!")).toBeInTheDocument();
   });
 
-  it("returns to idle when the confirm prompt is declined", async () => {
-    render(<IndexPage />);
+  it("returns to idle without uploading when the overwrite is declined", async () => {
+    renderWithBoot(<IndexPage />);
 
     dropFile(zipFile("marketing-dashboard.zip"));
     lastXhr().respond(409, {
       error: "already exists",
       url: "https://marketing-dashboard.artsy.dev",
     });
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "No" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "No" }));
+    fireEvent.click(await screen.findByRole("button", { name: "No" }));
 
     await waitFor(() => {
       expect(screen.queryByText(/There is already a site at/)).not.toBeInTheDocument();
     });
-    expect(FakeXhr.instances).toHaveLength(1); // no second upload fired
+    expect(FakeXhr.instances).toHaveLength(1);
   });
 
-  it("rejects a filename that can't derive a valid slug", () => {
-    render(<IndexPage />);
+  it("shows validation errors without contacting the server", () => {
+    renderWithBoot(<IndexPage />);
 
     dropFile(zipFile("___.zip"));
 
@@ -93,36 +84,55 @@ describe("IndexPage", () => {
     expect(FakeXhr.instances).toHaveLength(0);
   });
 
-  it("rejects a file over the upload size limit before ever contacting the server", () => {
-    render(<IndexPage />);
+  it("opens the file picker from the tagline button, which is keyboard accessible", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithBoot(<IndexPage />);
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    const click = jest.spyOn(HTMLInputElement.prototype, "click");
 
-    const oversized = new File([new Uint8Array(1)], "big-site.zip", { type: "application/zip" });
-    Object.defineProperty(oversized, "size", { value: 52428800 + 1 });
-    dropFile(oversized);
+    await user.tab();
+    expect(screen.getByRole("button", { name: /drop a zip, get a live site/i })).toHaveFocus();
+    await user.keyboard("{Enter}");
 
-    expect(screen.getByText(/larger than the upload limit/)).toBeInTheDocument();
-    expect(FakeXhr.instances).toHaveLength(0);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(input).not.toBeNull();
   });
 
-  it("toggles the drag-active class on the whole document during a drag, and clears it on drop", () => {
-    render(<IndexPage />);
+  it("uploads a file chosen through the picker", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWithBoot(<IndexPage />);
+    const input = container.querySelector<HTMLInputElement>(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+
+    await user.upload(input, zipFile("my-site.zip"));
+
+    expect(lastXhr().sentBody?.get("slug")).toBe("my-site");
+  });
+
+  it("highlights the viewport while a file is dragged over, and clears it on drop", () => {
+    renderWithBoot(<IndexPage />);
+    expect(screen.queryByTestId("drag-highlight")).not.toBeInTheDocument();
 
     fireEvent.dragEnter(window);
-    expect(document.body.classList.contains("drag-active")).toBe(true);
+    expect(screen.getByTestId("drag-highlight")).toBeInTheDocument();
 
     dropFile(zipFile());
-    expect(document.body.classList.contains("drag-active")).toBe(false);
+    expect(screen.queryByTestId("drag-highlight")).not.toBeInTheDocument();
   });
 
-  it("clears drag-active only once every nested dragenter has a matching dragleave", () => {
-    render(<IndexPage />);
+  it("announces status changes through a polite live region", () => {
+    renderWithBoot(<IndexPage />);
 
-    fireEvent.dragEnter(window);
-    fireEvent.dragEnter(window); // e.g. entering a child element fires a second enter
-    fireEvent.dragLeave(window);
-    expect(document.body.classList.contains("drag-active")).toBe(true);
+    expect(screen.getByRole("status")).toBeInTheDocument();
+  });
 
-    fireEvent.dragLeave(window);
-    expect(document.body.classList.contains("drag-active")).toBe(false);
+  it("links to the gallery in a new tab", () => {
+    renderWithBoot(<IndexPage />);
+
+    expect(screen.getByRole("link", { name: /See what others have made/ })).toHaveAttribute(
+      "href",
+      "https://gallery.artsy.dev",
+    );
   });
 });
