@@ -8,7 +8,6 @@ type FetchFn = typeof fetch;
 export interface ThumbnailDeps {
   s3Client: S3Client;
   bucket: string;
-  publicDomain: string;
   thumbnails?: ThumbnailConfig | undefined;
 }
 
@@ -17,7 +16,6 @@ const ERROR_BODY_LIMIT = 200;
 
 export async function captureThumbnail(
   slug: string,
-  publicDomain: string,
   cf: ThumbnailConfig,
   fetchFn: FetchFn = fetch,
 ): Promise<Uint8Array> {
@@ -30,7 +28,7 @@ export async function captureThumbnail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        url: siteUrl(slug, publicDomain),
+        url: siteUrl(slug),
         // Half scale yields a ~640x400 thumbnail from a desktop-width render.
         viewport: { width: 1280, height: 800, deviceScaleFactor: 0.5 },
         // "load" fires before client-rendered pages finish painting.
@@ -66,6 +64,6 @@ export async function refreshThumbnail(
     return;
   }
 
-  const image = await captureThumbnail(slug, deps.publicDomain, deps.thumbnails, fetchFn);
+  const image = await captureThumbnail(slug, deps.thumbnails, fetchFn);
   await putThumbnail(deps.s3Client, deps.bucket, slug, image);
 }

@@ -182,7 +182,7 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
 
     // Fire and forget: the pod is long-lived, and a missing thumbnail only
     // shows as a placeholder, so it must never fail or delay the upload.
-    refreshThumbnail({ s3Client, bucket, publicDomain, thumbnails }, parsed.slug).catch((err) => {
+    refreshThumbnail({ s3Client, bucket, thumbnails }, parsed.slug).catch((err) => {
       console.error(`Thumbnail refresh failed for slug "${parsed.slug}":`, err);
     });
   } catch (err) {

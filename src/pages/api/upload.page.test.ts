@@ -525,7 +525,7 @@ describe("POST /api/upload thumbnails", () => {
 
     expect(res.status).toBe(200);
     expect(mockRefreshThumbnail).toHaveBeenCalledWith(
-      { s3Client, bucket, publicDomain, thumbnails },
+      { s3Client, bucket, thumbnails },
       "marketing-dashboard",
     );
   });

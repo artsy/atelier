@@ -4,6 +4,7 @@ import { putThumbnail } from "./s3";
 import { captureThumbnail, refreshThumbnail } from "./thumbnail";
 
 jest.mock("./s3");
+jest.mock("./deps", () => ({ getConfig: () => ({ publicDomain: "artsy.dev" }) }));
 
 const mockPutThumbnail = putThumbnail as jest.MockedFunction<typeof putThumbnail>;
 
@@ -22,7 +23,7 @@ describe("captureThumbnail", () => {
   it("asks Cloudflare to screenshot the site, authenticating past Access", async () => {
     const fetchFn = jest.fn().mockResolvedValue(imageResponse());
 
-    await captureThumbnail("gallery", "artsy.dev", cf, fetchFn);
+    await captureThumbnail("gallery", cf, fetchFn);
 
     const [url, init] = fetchFn.mock.calls[0];
     expect(url).toBe("https://api.cloudflare.com/client/v4/accounts/acct/browser-run/screenshot");
@@ -43,7 +44,7 @@ describe("captureThumbnail", () => {
   it("returns the image bytes", async () => {
     const fetchFn = jest.fn().mockResolvedValue(imageResponse([9, 8, 7]));
 
-    const bytes = await captureThumbnail("gallery", "artsy.dev", cf, fetchFn);
+    const bytes = await captureThumbnail("gallery", cf, fetchFn);
 
     expect(Array.from(bytes)).toEqual([9, 8, 7]);
   });
@@ -51,9 +52,7 @@ describe("captureThumbnail", () => {
   it("throws with the status and body on a failed response", async () => {
     const fetchFn = jest.fn().mockResolvedValue(new Response("rate limited", { status: 429 }));
 
-    await expect(captureThumbnail("gallery", "artsy.dev", cf, fetchFn)).rejects.toThrow(
-      /429.*rate limited/,
-    );
+    await expect(captureThumbnail("gallery", cf, fetchFn)).rejects.toThrow(/429.*rate limited/);
   });
 
   it("throws when a 200 response is not an image", async () => {
@@ -63,9 +62,7 @@ describe("captureThumbnail", () => {
       }),
     );
 
-    await expect(captureThumbnail("gallery", "artsy.dev", cf, fetchFn)).rejects.toThrow(
-      /not an image/i,
-    );
+    await expect(captureThumbnail("gallery", cf, fetchFn)).rejects.toThrow(/not an image/i);
   });
 });
 
@@ -76,7 +73,7 @@ describe("refreshThumbnail", () => {
     const fetchFn = jest.fn().mockResolvedValue(imageResponse([1, 2, 3]));
 
     await refreshThumbnail(
-      { s3Client, bucket: "artsy-atelier", publicDomain: "artsy.dev", thumbnails: cf },
+      { s3Client, bucket: "artsy-atelier", thumbnails: cf },
       "gallery",
       fetchFn,
     );
@@ -92,11 +89,7 @@ describe("refreshThumbnail", () => {
   it("does nothing when thumbnails are not configured", async () => {
     const fetchFn = jest.fn();
 
-    await refreshThumbnail(
-      { s3Client, bucket: "artsy-atelier", publicDomain: "artsy.dev" },
-      "gallery",
-      fetchFn,
-    );
+    await refreshThumbnail({ s3Client, bucket: "artsy-atelier" }, "gallery", fetchFn);
 
     expect(fetchFn).not.toHaveBeenCalled();
     expect(mockPutThumbnail).not.toHaveBeenCalled();
@@ -106,11 +99,7 @@ describe("refreshThumbnail", () => {
     const fetchFn = jest.fn().mockResolvedValue(new Response("boom", { status: 500 }));
 
     await expect(
-      refreshThumbnail(
-        { s3Client, bucket: "artsy-atelier", publicDomain: "artsy.dev", thumbnails: cf },
-        "gallery",
-        fetchFn,
-      ),
+      refreshThumbnail({ s3Client, bucket: "artsy-atelier", thumbnails: cf }, "gallery", fetchFn),
     ).rejects.toThrow(/500/);
     expect(mockPutThumbnail).not.toHaveBeenCalled();
   });
