@@ -17,6 +17,7 @@
     "format": "biome format --write .",
     "sites:list": "tsx src/scripts/listSites.ts",
     "sites:list:recent": "tsx src/scripts/listSites.ts --sort=oldest",
+    "thumbnails:backfill": "tsx src/scripts/backfillThumbnails.ts",
     "sites:delete": "./scripts/safely_delete.sh",
     "test": "jest",
     "test:watch": "jest --watch",
