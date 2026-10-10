@@ -7,6 +7,7 @@ import { parseUpload, type UploadContext } from "../../lib/parseUpload";
 import { deletePrefix, headIndex, putFile } from "../../lib/s3";
 import { siteUrl } from "../../lib/siteUrl";
 import { validateSlug } from "../../lib/slug";
+import { refreshThumbnail } from "../../lib/thumbnail";
 import { sanitizeUploader } from "../../lib/uploader";
 import { normalizeZipEntries, ZipValidationError } from "../../lib/zip";
 import { withErrorHandler } from "../../middleware/withErrorHandler";
@@ -43,6 +44,7 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
     s3Bucket: bucket,
     cloudfrontDistributionId: distributionId,
     maxUploadBytes,
+    thumbnails,
   } = getConfig();
   const s3Client = getS3Client();
   const cloudFrontClient = getCloudFrontClient();
@@ -176,6 +178,12 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
       ...(aliasedIndexFrom !== undefined && {
         notes: [`Used ${aliasedIndexFrom} as the homepage since no index.html was found`],
       }),
+    });
+
+    // Fire and forget: the pod is long-lived, and a missing thumbnail only
+    // shows as a placeholder, so it must never fail or delay the upload.
+    refreshThumbnail({ s3Client, bucket, thumbnails }, parsed.slug).catch((err) => {
+      console.error(`Thumbnail refresh failed for slug "${parsed.slug}":`, err);
     });
   } catch (err) {
     if (err instanceof ZipValidationError) {
