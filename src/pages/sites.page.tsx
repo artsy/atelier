@@ -43,10 +43,10 @@ const SortLink = styled(Link)`
 
 export const getServerSideProps: GetServerSideProps<SitesPageProps> = async ({ query }) => {
   const sort = parseSiteSort(query.sort) ?? DEFAULT_SITE_SORT;
-  const { s3Bucket, publicDomain } = getConfig();
+  const { s3Bucket } = getConfig();
   const sites = await listSites(getS3Client(), s3Bucket, sort);
 
-  return { props: { sort, sites: sites.map((site) => toSiteListing(site, publicDomain)) } };
+  return { props: { sort, sites: sites.map((site) => toSiteListing(site)) } };
 };
 
 export default function SitesPage({ sites, sort }: SitesPageProps) {
