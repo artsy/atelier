@@ -41,16 +41,8 @@ describe("SitesPage", () => {
       "href",
       "https://no-meta.artsy.dev",
     );
-    expect(screen.getByText(/uploaded by somebody@artsymail.com/)).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
-  });
-
-  it("mutes the attribution text", () => {
-    renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
-
-    expect(screen.getByText(/uploaded by somebody@artsymail.com/)).toHaveStyle({
-      color: "rgb(112, 112, 112)",
-    });
+    expect(screen.getByText("somebody@artsymail.com")).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
   });
 
   it("does not underline site slugs", () => {
@@ -59,17 +51,54 @@ describe("SitesPage", () => {
     expect(screen.getByRole("link", { name: "gallery" })).toHaveStyle({ textDecoration: "none" });
   });
 
+  it("shows a page heading", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
+
+    expect(screen.getByRole("heading", { name: "Atelier Sites" })).toBeInTheDocument();
+  });
+
   it("shows a singular count for one site", () => {
     renderWithBoot(<SitesPage sites={sites.slice(0, 1)} sort="newest" view="list" />);
 
-    expect(screen.getByText("Sort 1 site by")).toBeInTheDocument();
+    expect(screen.getByText("1 site")).toBeInTheDocument();
   });
 
-  it("shows the site count", () => {
+  it("shows the site count and labels the sort and view controls", () => {
     renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
 
-    expect(screen.getByText("Sort 2 sites by")).toBeInTheDocument();
-    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.getByText("2 sites")).toBeInTheDocument();
+    expect(screen.getByText("Sort by")).toBeInTheDocument();
+    expect(screen.getByText("View as")).toBeInTheDocument();
+  });
+
+  describe("on small screens", () => {
+    function generatedCss(): string {
+      return Array.from(document.querySelectorAll("style"))
+        .map((style) => style.textContent)
+        .join("");
+    }
+
+    it("hides the site count so the sort and view controls share a line", () => {
+      renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+      expect(generatedCss()).toMatch(/@media \(max-width:599px\)\{[^}]*display:none/);
+      expect(screen.getByText("2 sites")).toBeInTheDocument();
+    });
+
+    it("hides the control labels visually on narrow phones but keeps them for screen readers", () => {
+      renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+      expect(generatedCss()).toMatch(/@media \(max-width:439px\)\{[^}]*clip:rect\(0 0 0 0\)/);
+      expect(screen.getByText("Sort by")).toBeInTheDocument();
+      expect(screen.getByText("View as")).toBeInTheDocument();
+    });
+  });
+
+  it("keeps each control group on one line so a narrow header wraps by group", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+    expect(screen.getByText("Sort by").parentElement).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(screen.getByText("View as").parentElement).toHaveStyle({ whiteSpace: "nowrap" });
   });
 
   it("marks the active sort and links to the other one", () => {
@@ -79,16 +108,7 @@ describe("SitesPage", () => {
     expect(screen.getByRole("link", { name: "Newest" })).not.toHaveAttribute("aria-current");
     expect(screen.getByRole("link", { name: "Newest" })).toHaveAttribute(
       "href",
-      "/sites?sort=newest",
-    );
-  });
-
-  it("offers sorting by uploader", () => {
-    renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
-
-    expect(screen.getByRole("link", { name: "Uploader" })).toHaveAttribute(
-      "href",
-      "/sites?sort=uploader",
+      "/sites?sort=newest&view=list",
     );
   });
 
@@ -111,7 +131,10 @@ describe("SitesPage", () => {
     renderWithBoot(<SitesPage sites={[]} sort="newest" view="list" />);
 
     expect(screen.getByText("No sites yet")).toBeInTheDocument();
-    expect(screen.queryByText(/^Sort /)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Atelier Sites" })).toBeInTheDocument();
+    expect(screen.queryByText("Sort by")).not.toBeInTheDocument();
+    expect(screen.queryByText("View as")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^\d+ sites?$/)).not.toBeInTheDocument();
     expect(screen.queryByRole("separator")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Newest" })).not.toBeInTheDocument();
   });
@@ -171,10 +194,19 @@ describe("SitesPage grid view", () => {
     expect(grid).toHaveStyle({ rowGap: "2.5rem", columnGap: "1.5rem" });
   });
 
-  it("does not render thumbnails in the list view", () => {
+  it("shows grid cards, not a table, in the grid view", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows a table, not grid cards, in the list view", () => {
     renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
 
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /^Screenshot of/ })).not.toBeInTheDocument();
   });
 });
 
@@ -184,39 +216,58 @@ describe("SitesPage layout", () => {
     (view) => {
       renderWithBoot(<SitesPage sites={sites} sort="newest" view={view} />);
 
-      expect(screen.getByRole("separator").parentElement).toHaveStyle({ maxWidth: "1200px" });
+      expect(screen.getByRole("separator").parentElement).toHaveStyle({ maxWidth: "1440px" });
     },
   );
 });
 
 describe("SitesPage view toggle", () => {
-  it("marks the active view and links to the other, keeping the sort", () => {
-    renderWithBoot(<SitesPage sites={sites} sort="name" view="list" />);
-
-    expect(screen.getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("link", { name: "Grid" })).toHaveAttribute(
-      "href",
-      "/sites?sort=name&view=grid",
-    );
-  });
-
-  it("links back to the list without a view param", () => {
-    renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+  it("marks the grid as active and links to the list, keeping the sort", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="name" view="grid" />);
 
     expect(screen.getByRole("link", { name: "Grid" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("link", { name: "List" })).toHaveAttribute(
+      "href",
+      "/sites?sort=name&view=list",
+    );
+  });
+
+  it("links back to the grid without a view param, since grid is the default", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
+
+    expect(screen.getByRole("link", { name: "List" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "Grid" })).toHaveAttribute(
       "href",
       "/sites?sort=newest",
     );
   });
 
-  it("keeps the grid view when changing the sort", () => {
+  it("offers sorting by uploader", () => {
     renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+    expect(screen.getByRole("link", { name: "Uploader" })).toHaveAttribute(
+      "href",
+      "/sites?sort=uploader",
+    );
+  });
+
+  it("keeps the list view when changing the sort", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
 
     expect(screen.getByRole("link", { name: "Name" })).toHaveAttribute(
       "href",
-      "/sites?sort=name&view=grid",
+      "/sites?sort=name&view=list",
     );
+  });
+
+  it("lists the grid option before the list option", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+    const names = screen
+      .getAllByRole("link")
+      .map((link) => link.textContent)
+      .filter((text) => text === "Grid" || text === "List");
+    expect(names).toEqual(["Grid", "List"]);
   });
 });
 
@@ -240,7 +291,7 @@ describe("getServerSideProps", () => {
     expect(result).toEqual({
       props: {
         sort: "newest",
-        view: "list",
+        view: "grid",
         sites: [
           {
             slug: "gallery",
@@ -258,16 +309,16 @@ describe("getServerSideProps", () => {
     expect(mockListSites).toHaveBeenCalledWith({}, "artsy-atelier", "name");
   });
 
-  it("honors view=grid", async () => {
-    const result = await run({ view: "grid" });
-
-    expect(result).toMatchObject({ props: { view: "grid" } });
-  });
-
-  it("falls back to the list view for an unknown view param", async () => {
-    const result = await run({ view: "carousel" });
+  it("honors view=list", async () => {
+    const result = await run({ view: "list" });
 
     expect(result).toMatchObject({ props: { view: "list" } });
+  });
+
+  it("falls back to the grid view for an unknown view param", async () => {
+    const result = await run({ view: "carousel" });
+
+    expect(result).toMatchObject({ props: { view: "grid" } });
   });
 
   it("falls back to newest for an invalid sort param", async () => {
