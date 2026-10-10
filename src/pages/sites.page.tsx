@@ -3,6 +3,7 @@ import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import styled from "styled-components";
+import { SiteCard } from "../components/SiteCard";
 import { SiteLink } from "../components/SiteLink";
 import { getConfig, getS3Client } from "../lib/deps";
 import { formatAttribution } from "../lib/formatAttribution";
@@ -14,9 +15,18 @@ import {
 } from "../lib/siteListing";
 import { listSites, type SiteSort } from "../lib/sites";
 
+type SiteView = "list" | "grid";
+
+// One width for both views, so the controls stay put when switching.
+const PAGE_MAX_WIDTH = 1200;
+
+// Roughly the first row on a desktop-width grid.
+const EAGER_THUMBNAILS = 4;
+
 interface SitesPageProps {
   sites: SiteListing[];
   sort: SiteSort;
+  view: SiteView;
 }
 
 const SORT_OPTIONS: Array<{ sort: SiteSort; label: string }> = [
@@ -24,6 +34,24 @@ const SORT_OPTIONS: Array<{ sort: SiteSort; label: string }> = [
   { sort: "name", label: "Name" },
   { sort: "uploader", label: "Uploader" },
 ];
+
+const VIEW_OPTIONS: Array<{ view: SiteView; label: string }> = [
+  { view: "list", label: "List" },
+  { view: "grid", label: "Grid" },
+];
+
+function parseView(value: unknown): SiteView {
+  return value === "grid" ? "grid" : "list";
+}
+
+// The list view is the default, so it stays out of the URL.
+function sitesHref(sort: SiteSort, view: SiteView): string {
+  const params = new URLSearchParams({ sort });
+  if (view === "grid") {
+    params.set("view", "grid");
+  }
+  return `/sites?${params}`;
+}
 
 const SortLink = styled(Link)`
   color: inherit;
@@ -46,33 +74,62 @@ export const getServerSideProps: GetServerSideProps<SitesPageProps> = async ({ q
   const { s3Bucket } = getConfig();
   const sites = await listSites(getS3Client(), s3Bucket, sort);
 
-  return { props: { sort, sites: sites.map((site) => toSiteListing(site)) } };
+  return {
+    props: {
+      sort,
+      view: parseView(query.view),
+      sites: sites.map((site) => toSiteListing(site)),
+    },
+  };
 };
 
-export default function SitesPage({ sites, sort }: SitesPageProps) {
+export default function SitesPage({ sites, sort, view }: SitesPageProps) {
   return (
     <>
       <Head>
         <title>Sites | Atelier</title>
       </Head>
 
-      <Flex flexDirection="column" width="100%" maxWidth={720} mx="auto" p={2} mt={4}>
+      <Flex flexDirection="column" width="100%" maxWidth={PAGE_MAX_WIDTH} mx="auto" p={2} mt={4}>
         {sites.length > 0 && (
           <>
-            <Flex alignItems="baseline">
-              <Text variant="sm" mr={1}>
-                Sort {sites.length} {sites.length === 1 ? "site" : "sites"} by
-              </Text>
-              {SORT_OPTIONS.map((option) => (
-                <Text key={option.sort} variant="sm">
-                  <SortLink
-                    href={`/sites?sort=${option.sort}`}
-                    aria-current={option.sort === sort ? "true" : undefined}
-                  >
-                    {option.label}
-                  </SortLink>
+            <Flex
+              alignItems="baseline"
+              justifyContent="space-between"
+              flexWrap="wrap"
+              style={{ gap: "0.5rem 1.5rem" }}
+            >
+              <Flex alignItems="baseline">
+                <Text variant="sm" mr={1}>
+                  Sort {sites.length} {sites.length === 1 ? "site" : "sites"} by
                 </Text>
-              ))}
+                {SORT_OPTIONS.map((option) => (
+                  <Text key={option.sort} variant="sm">
+                    <SortLink
+                      href={sitesHref(option.sort, view)}
+                      aria-current={option.sort === sort ? "true" : undefined}
+                    >
+                      {option.label}
+                    </SortLink>
+                  </Text>
+                ))}
+              </Flex>
+
+              <Flex alignItems="baseline">
+                <Text variant="sm" mr={1}>
+                  View
+                </Text>
+                {VIEW_OPTIONS.map((option) => (
+                  <Text key={option.view} variant="sm">
+                    <SortLink
+                      href={sitesHref(sort, option.view)}
+                      aria-current={option.view === view ? "true" : undefined}
+                    >
+                      {option.label}
+                    </SortLink>
+                  </Text>
+                ))}
+              </Flex>
             </Flex>
             <Separator role="separator" my={2} />
           </>
@@ -80,6 +137,24 @@ export default function SitesPage({ sites, sort }: SitesPageProps) {
 
         {sites.length === 0 ? (
           <Text variant="md">No sites yet</Text>
+        ) : view === "grid" ? (
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+              rowGap: "2.5rem",
+              columnGap: "1.5rem",
+            }}
+          >
+            {sites.map((site, index) => (
+              <li key={site.slug}>
+                <SiteCard site={site} eager={index < EAGER_THUMBNAILS} />
+              </li>
+            ))}
+          </ul>
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {sites.map((site) => {
