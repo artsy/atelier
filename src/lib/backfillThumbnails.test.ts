@@ -20,7 +20,6 @@ const thumbnails: ThumbnailConfig = {
 const deps = {
   s3Client: {} as S3Client,
   bucket: "artsy-atelier",
-  publicDomain: "artsy.dev",
   thumbnails,
 };
 

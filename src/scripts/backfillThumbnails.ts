@@ -13,7 +13,6 @@ async function main(): Promise<void> {
     {
       s3Client: new S3Client({ region: config.s3Region }),
       bucket: config.s3Bucket,
-      publicDomain: config.publicDomain,
       thumbnails: config.thumbnails,
     },
     { missingOnly, ...(slugs.length > 0 && { slugs }) },
