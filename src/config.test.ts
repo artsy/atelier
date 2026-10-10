@@ -37,4 +37,32 @@ describe("loadConfig", () => {
   it("throws on a non-numeric numeric var", () => {
     expect(() => loadConfig(env({ ...base, PORT: "abc" }))).toThrow(/PORT/);
   });
+
+  describe("thumbnails", () => {
+    const thumbnailVars = {
+      CF_ACCOUNT_ID: "acct",
+      CF_API_TOKEN: "token",
+      CF_ACCESS_CLIENT_ID: "id.access",
+      CF_ACCESS_CLIENT_SECRET: "secret",
+    };
+
+    it("is disabled when none of the Cloudflare vars are set", () => {
+      expect(loadConfig(env(base)).thumbnails).toBeUndefined();
+    });
+
+    it("is configured when all four Cloudflare vars are set", () => {
+      expect(loadConfig(env({ ...base, ...thumbnailVars })).thumbnails).toEqual({
+        accountId: "acct",
+        apiToken: "token",
+        accessClientId: "id.access",
+        accessClientSecret: "secret",
+      });
+    });
+
+    it("throws naming the missing vars when only some are set", () => {
+      const { CF_API_TOKEN: _omitted, ...partial } = thumbnailVars;
+
+      expect(() => loadConfig(env({ ...base, ...partial }))).toThrow(/CF_API_TOKEN/);
+    });
+  });
 });

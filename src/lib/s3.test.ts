@@ -1,12 +1,21 @@
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { mockClient } from "aws-sdk-client-mock";
-import { deletePrefix, headIndex, listPrefix, listSlugs, putFile } from "./s3";
+import {
+  deletePrefix,
+  getThumbnail,
+  headIndex,
+  listPrefix,
+  listSlugs,
+  putFile,
+  putThumbnail,
+} from "./s3";
 
 const s3Mock = mockClient(S3Client);
 const client = new S3Client({ region: "us-east-1" });
@@ -60,6 +69,16 @@ describe("listPrefix", () => {
 
     const keys = await listPrefix(client, bucket, "marketing-dashboard");
     expect(keys).toEqual(["marketing-dashboard/index.html", "marketing-dashboard/app.js"]);
+  });
+
+  it("skips prefixes that cannot be sites, like the thumbnails folder", async () => {
+    s3Mock.on(ListObjectsV2Command).resolves({
+      CommonPrefixes: [{ Prefix: "_thumbnails/" }, { Prefix: "gallery/" }],
+      IsTruncated: false,
+    });
+
+    const slugs = await listSlugs(client, bucket);
+    expect(slugs).toEqual(["gallery"]);
   });
 
   it("follows continuation tokens across pages", async () => {
@@ -211,5 +230,48 @@ describe("putFile", () => {
     expect(input?.Metadata?.["uploaded-at"]).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     );
+  });
+});
+
+describe("putThumbnail", () => {
+  it("stores the image under the reserved thumbnails prefix", async () => {
+    s3Mock.on(PutObjectCommand).resolves({});
+
+    await putThumbnail(client, bucket, "gallery", new Uint8Array([1, 2, 3]));
+
+    const input = s3Mock.commandCalls(PutObjectCommand)[0]?.args[0].input;
+    expect(input).toMatchObject({
+      Bucket: bucket,
+      Key: "_thumbnails/gallery.jpg",
+      ContentType: "image/jpeg",
+    });
+    expect(input?.Body).toEqual(new Uint8Array([1, 2, 3]));
+  });
+});
+
+describe("getThumbnail", () => {
+  it("returns the stored image bytes", async () => {
+    s3Mock.on(GetObjectCommand, { Bucket: bucket, Key: "_thumbnails/gallery.jpg" }).resolves({
+      Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) } as never,
+    });
+
+    const bytes = await getThumbnail(client, bucket, "gallery");
+    expect(bytes && Array.from(bytes)).toEqual([1, 2, 3]);
+  });
+
+  it("returns undefined when there is no thumbnail", async () => {
+    s3Mock
+      .on(GetObjectCommand)
+      .rejects(
+        Object.assign(new Error("The specified key does not exist."), { name: "NoSuchKey" }),
+      );
+
+    expect(await getThumbnail(client, bucket, "gallery")).toBeUndefined();
+  });
+
+  it("rethrows unexpected errors", async () => {
+    s3Mock.on(GetObjectCommand).rejects(new Error("Forbidden"));
+
+    await expect(getThumbnail(client, bucket, "gallery")).rejects.toThrow("Forbidden");
   });
 });
