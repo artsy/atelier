@@ -23,6 +23,19 @@ describe("toSiteListing", () => {
       slug: "gallery",
       uploadedBy: "somebody@artsymail.com",
       url: "https://gallery.artsy.dev",
+      thumbnailUrl: "/api/thumbnails/gallery",
     });
+  });
+});
+
+describe("toSiteListing thumbnailUrl", () => {
+  it("is versioned by upload time so a re-upload busts the cache", () => {
+    const listing = toSiteListing({ slug: "gallery", uploadedAt: "2026-07-20T12:00:00.000Z" });
+
+    expect(listing.thumbnailUrl).toBe("/api/thumbnails/gallery?v=2026-07-20T12%3A00%3A00.000Z");
+  });
+
+  it("has no version when the upload time is unknown", () => {
+    expect(toSiteListing({ slug: "gallery" }).thumbnailUrl).toBe("/api/thumbnails/gallery");
   });
 });

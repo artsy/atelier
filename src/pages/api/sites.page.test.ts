@@ -60,12 +60,14 @@ describe("GET /api/sites", () => {
         {
           slug: "gallery",
           url: "https://gallery.artsy.dev",
+          thumbnailUrl: "/api/thumbnails/gallery?v=2026-07-20T12%3A00%3A00.000Z",
           uploadedBy: "somebody@artsymail.com",
           uploadedAt: "2026-07-20T12:00:00.000Z",
         },
         {
           slug: "no-meta",
           url: "https://no-meta.artsy.dev",
+          thumbnailUrl: "/api/thumbnails/no-meta",
         },
       ],
     });
