@@ -33,6 +33,7 @@ export default class AtelierDocument extends Document {
     return (
       <Html lang="en">
         <Head>
+          <meta name="color-scheme" content="light dark" />
           <link
             rel="preload"
             href="https://webfonts.artsy.net/ll-unica77_regular.woff2"
