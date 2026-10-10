@@ -16,6 +16,6 @@ export function parseSiteSort(value: unknown): SiteSort | undefined {
   return typeof value === "string" && SITE_SORTS.includes(value) ? (value as SiteSort) : undefined;
 }
 
-export function toSiteListing(site: SiteInfo, publicDomain: string): SiteListing {
-  return { ...site, url: siteUrl(site.slug, publicDomain) };
+export function toSiteListing(site: SiteInfo): SiteListing {
+  return { ...site, url: siteUrl(site.slug) };
 }

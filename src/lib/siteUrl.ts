@@ -1,3 +1,5 @@
-export function siteUrl(slug: string, publicDomain: string): string {
-  return `https://${slug}.${publicDomain}`;
+import { getConfig } from "./deps";
+
+export function siteUrl(slug: string): string {
+  return `https://${slug}.${getConfig().publicDomain}`;
 }

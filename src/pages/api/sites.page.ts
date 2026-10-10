@@ -18,7 +18,7 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
     return;
   }
 
-  const { s3Bucket, publicDomain } = getConfig();
+  const { s3Bucket } = getConfig();
   const sites = await listSites(getS3Client(), s3Bucket, sort);
-  res.status(200).json({ sites: sites.map((site) => toSiteListing(site, publicDomain)) });
+  res.status(200).json({ sites: sites.map((site) => toSiteListing(site)) });
 });

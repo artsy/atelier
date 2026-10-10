@@ -1,5 +1,7 @@
 import { parseSiteSort, toSiteListing } from "./siteListing";
 
+jest.mock("./deps", () => ({ getConfig: () => ({ publicDomain: "artsy.dev" }) }));
+
 describe("parseSiteSort", () => {
   it("defaults to newest when absent", () => {
     expect(parseSiteSort(undefined)).toBe("newest");
@@ -17,9 +19,7 @@ describe("parseSiteSort", () => {
 
 describe("toSiteListing", () => {
   it("adds the public url and keeps upload metadata", () => {
-    expect(
-      toSiteListing({ slug: "gallery", uploadedBy: "somebody@artsymail.com" }, "artsy.dev"),
-    ).toEqual({
+    expect(toSiteListing({ slug: "gallery", uploadedBy: "somebody@artsymail.com" })).toEqual({
       slug: "gallery",
       uploadedBy: "somebody@artsymail.com",
       url: "https://gallery.artsy.dev",
