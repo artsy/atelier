@@ -5,8 +5,8 @@ import Link from "next/link";
 import styled from "styled-components";
 import { SiteCard } from "../components/SiteCard";
 import { SiteLink } from "../components/SiteLink";
+import { SiteTable } from "../components/SiteTable";
 import { getConfig, getS3Client } from "../lib/deps";
-import { formatAttribution } from "../lib/formatAttribution";
 import {
   DEFAULT_SITE_SORT,
   parseSiteSort,
@@ -156,30 +156,7 @@ export default function SitesPage({ sites, sort, view }: SitesPageProps) {
             ))}
           </ul>
         ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {sites.map((site) => {
-              const attribution = formatAttribution(site.uploadedBy, site.uploadedAt);
-              return (
-                <li key={site.slug} style={{ marginBottom: "1rem" }}>
-                  <Text variant="lg-display">
-                    <SiteLink
-                      href={site.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      textDecoration="none"
-                    >
-                      {site.slug}
-                    </SiteLink>
-                  </Text>
-                  {attribution && (
-                    <Text variant="xs" color="mono60">
-                      {attribution}
-                    </Text>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <SiteTable sites={sites} />
         )}
 
         <Spacer y={2} />

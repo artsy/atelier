@@ -41,16 +41,8 @@ describe("SitesPage", () => {
       "href",
       "https://no-meta.artsy.dev",
     );
-    expect(screen.getByText(/uploaded by somebody@artsymail.com/)).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
-  });
-
-  it("mutes the attribution text", () => {
-    renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
-
-    expect(screen.getByText(/uploaded by somebody@artsymail.com/)).toHaveStyle({
-      color: "rgb(112, 112, 112)",
-    });
+    expect(screen.getByText("somebody@artsymail.com")).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(3);
   });
 
   it("does not underline site slugs", () => {
