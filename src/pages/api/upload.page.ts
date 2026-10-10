@@ -5,6 +5,7 @@ import { getHeader } from "../../lib/getHeader";
 import { resolveContentType } from "../../lib/mime";
 import { parseUpload, type UploadContext } from "../../lib/parseUpload";
 import { deletePrefix, headIndex, putFile } from "../../lib/s3";
+import { siteUrl } from "../../lib/siteUrl";
 import { validateSlug } from "../../lib/slug";
 import { sanitizeUploader } from "../../lib/uploader";
 import { normalizeZipEntries, ZipValidationError } from "../../lib/zip";
@@ -41,7 +42,6 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
   const {
     s3Bucket: bucket,
     cloudfrontDistributionId: distributionId,
-    publicDomain,
     maxUploadBytes,
   } = getConfig();
   const s3Client = getS3Client();
@@ -115,7 +115,7 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
       });
       res.status(409).json({
         error: `Slug "${parsed.slug}" already exists`,
-        url: `https://${parsed.slug}.${publicDomain}`,
+        url: siteUrl(parsed.slug),
         ...(existing.uploadedBy !== undefined && { uploadedBy: existing.uploadedBy }),
         ...(existing.uploadedAt !== undefined && { uploadedAt: existing.uploadedAt }),
       });
@@ -171,7 +171,7 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
 
     res.status(200).json({
       ok: true,
-      url: `https://${parsed.slug}.${publicDomain}`,
+      url: siteUrl(parsed.slug),
       fileCount: entries.length,
       ...(aliasedIndexFrom !== undefined && {
         notes: [`Used ${aliasedIndexFrom} as the homepage since no index.html was found`],

@@ -16,7 +16,7 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "sites:list": "tsx src/scripts/listSites.ts",
-    "sites:list:recent": "tsx src/scripts/listSites.ts --sort=recent",
+    "sites:list:recent": "tsx src/scripts/listSites.ts --sort=oldest",
     "sites:delete": "./scripts/safely_delete.sh",
     "test": "jest",
     "test:watch": "jest --watch",

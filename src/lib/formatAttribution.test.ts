@@ -1,4 +1,4 @@
-import { formatAttribution } from "./formatAttribution";
+import { formatAttribution, formatUploader } from "./formatAttribution";
 
 describe("formatAttribution", () => {
   const NOW = new Date("2026-07-27T12:00:00.000Z");
@@ -32,5 +32,17 @@ describe("formatAttribution", () => {
   it("returns null when there is nothing to show", () => {
     expect(formatAttribution(undefined, undefined)).toBeNull();
     expect(formatAttribution("anonymous", "not a date")).toBeNull();
+  });
+});
+
+describe("formatUploader", () => {
+  it("returns a real uploader as is", () => {
+    expect(formatUploader("somebody@artsymail.com")).toBe("somebody@artsymail.com");
+  });
+
+  it("returns null for anonymous, empty or absent uploaders", () => {
+    expect(formatUploader("anonymous")).toBeNull();
+    expect(formatUploader("")).toBeNull();
+    expect(formatUploader(undefined)).toBeNull();
   });
 });
