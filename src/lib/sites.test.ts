@@ -55,8 +55,40 @@ describe("sortSites", () => {
     expect(sortSites(sites, "name").map((s) => s.slug)).toEqual(["alpha", "beta", "gamma"]);
   });
 
-  it("sorts chronologically (oldest first), with missing timestamps last", () => {
-    expect(sortSites(sites, "recent").map((s) => s.slug)).toEqual(["beta", "alpha", "gamma"]);
+  it("sorts oldest first, with missing timestamps last", () => {
+    expect(sortSites(sites, "oldest").map((s) => s.slug)).toEqual(["beta", "alpha", "gamma"]);
+  });
+
+  it("sorts newest first, with missing timestamps still last", () => {
+    expect(sortSites(sites, "newest").map((s) => s.slug)).toEqual(["alpha", "beta", "gamma"]);
+  });
+
+  describe("by uploader", () => {
+    const uploaded = [
+      { slug: "a", uploadedBy: "zoe@artsymail.com", uploadedAt: "2026-07-01T12:00:00.000Z" },
+      { slug: "b", uploadedBy: "Anna@artsymail.com", uploadedAt: "2026-07-02T12:00:00.000Z" },
+      { slug: "c", uploadedBy: "anna@artsymail.com", uploadedAt: "2026-07-09T12:00:00.000Z" },
+      { slug: "d", uploadedBy: "anonymous", uploadedAt: "2026-07-30T12:00:00.000Z" },
+      { slug: "e" },
+    ];
+
+    it("sorts uploaders alphabetically without regard to case", () => {
+      const order = sortSites(uploaded, "uploader").map((s) => s.slug);
+
+      expect(order.slice(0, 3)).toEqual(["c", "b", "a"]);
+    });
+
+    it("puts anonymous and unknown uploaders last", () => {
+      const order = sortSites(uploaded, "uploader").map((s) => s.slug);
+
+      expect(order.slice(3)).toEqual(["d", "e"]);
+    });
+
+    it("lists an uploader's sites newest first", () => {
+      const order = sortSites(uploaded, "uploader").map((s) => s.slug);
+
+      expect(order.indexOf("c")).toBeLessThan(order.indexOf("b"));
+    });
   });
 
   it("does not mutate the input array", () => {
