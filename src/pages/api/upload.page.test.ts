@@ -5,6 +5,7 @@ import { invalidateSlug } from "../../lib/cloudfront";
 import { getCloudFrontClient, getConfig, getS3Client, resetDeps } from "../../lib/deps";
 import { deletePrefix, headIndex, putFile } from "../../lib/s3";
 import { createTestServer } from "../../lib/testApiRouteHandler";
+import { refreshThumbnail } from "../../lib/thumbnail";
 import { extractZip, ZipValidationError } from "../../lib/zip";
 import handler from "./upload.page";
 
@@ -22,6 +23,7 @@ jest.mock("../../lib/zip", () => ({
   extractZip: jest.fn(),
 }));
 jest.mock("../../lib/cloudfront");
+jest.mock("../../lib/thumbnail");
 jest.mock("../../lib/deps", () => ({
   ...jest.requireActual("../../lib/deps"),
   getS3Client: jest.fn(),
@@ -33,6 +35,7 @@ const mockHeadIndex = headIndex as jest.MockedFunction<typeof headIndex>;
 const mockDeletePrefix = deletePrefix as jest.MockedFunction<typeof deletePrefix>;
 const mockPutFile = putFile as jest.MockedFunction<typeof putFile>;
 const mockExtractZip = extractZip as jest.MockedFunction<typeof extractZip>;
+const mockRefreshThumbnail = refreshThumbnail as jest.MockedFunction<typeof refreshThumbnail>;
 const mockInvalidateSlug = invalidateSlug as jest.MockedFunction<typeof invalidateSlug>;
 const mockGetS3Client = getS3Client as jest.MockedFunction<typeof getS3Client>;
 const mockGetCloudFrontClient = getCloudFrontClient as jest.MockedFunction<
@@ -71,7 +74,14 @@ function rejectingExtractZip(err: Error) {
   };
 }
 
-function buildServer(overrides: { maxUploadBytes?: number } = {}) {
+const thumbnails = {
+  accountId: "acct",
+  apiToken: "api-token",
+  accessClientId: "id.access",
+  accessClientSecret: "secret",
+};
+
+function buildServer(overrides: { maxUploadBytes?: number; thumbnails?: typeof thumbnails } = {}) {
   mockGetConfig.mockReturnValue({
     s3Bucket: bucket,
     s3Region: "us-east-1",
@@ -92,7 +102,7 @@ const DEFAULT_ZIP_BUFFER = Buffer.from("PK\x03\x04fake");
 function postUpload(
   fields: Record<string, string> = {},
   zipBuffer: Buffer | null = DEFAULT_ZIP_BUFFER,
-  overrides: { maxUploadBytes?: number } = {},
+  overrides: { maxUploadBytes?: number; thumbnails?: typeof thumbnails } = {},
 ) {
   let req = request(buildServer(overrides)).post("/api/upload");
   for (const [key, value] of Object.entries(fields)) {
@@ -112,6 +122,7 @@ beforeEach(() => {
   mockPutFile.mockReset().mockResolvedValue(undefined);
   mockExtractZip.mockReset().mockImplementation(resolvingExtractZip(ZIP_ENTRIES));
   mockInvalidateSlug.mockReset().mockResolvedValue(undefined);
+  mockRefreshThumbnail.mockReset().mockResolvedValue(undefined);
   mockGetS3Client.mockReturnValue(s3Client);
   mockGetCloudFrontClient.mockReturnValue(cloudFrontClient);
   consoleLog = jest.spyOn(console, "log").mockImplementation();
@@ -503,5 +514,47 @@ describe("POST /api/upload", () => {
     expect(storedUploadedBy).toHaveLength(320);
     expect(oversized.startsWith(storedUploadedBy as string)).toBe(true);
     expect(lastUploadLog().uploadedBy).toHaveLength(320);
+  });
+});
+
+describe("POST /api/upload thumbnails", () => {
+  it("refreshes the site's thumbnail after a successful upload", async () => {
+    const res = await postUpload({ slug: "marketing-dashboard" }, DEFAULT_ZIP_BUFFER, {
+      thumbnails,
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockRefreshThumbnail).toHaveBeenCalledWith(
+      { s3Client, bucket, publicDomain, thumbnails },
+      "marketing-dashboard",
+    );
+  });
+
+  it("still returns 200 when the thumbnail refresh fails, logging the error", async () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation();
+    mockRefreshThumbnail.mockRejectedValue(new Error("screenshot down"));
+
+    const res = await postUpload({ slug: "marketing-dashboard" }, DEFAULT_ZIP_BUFFER, {
+      thumbnails,
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(res.status).toBe(200);
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("marketing-dashboard"),
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
+  });
+
+  it("does not refresh the thumbnail when the upload is rejected", async () => {
+    mockHeadIndex.mockResolvedValue({ exists: true });
+
+    const res = await postUpload({ slug: "marketing-dashboard" }, DEFAULT_ZIP_BUFFER, {
+      thumbnails,
+    });
+
+    expect(res.status).toBe(409);
+    expect(mockRefreshThumbnail).not.toHaveBeenCalled();
   });
 });
