@@ -133,8 +133,8 @@ describe("SitesPage grid view", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
-  it("loads the first row of thumbnails eagerly and the rest lazily", () => {
-    const many: SiteListing[] = Array.from({ length: 6 }, (_, i) => ({
+  it("loads the first two rows of thumbnails eagerly and the rest lazily", () => {
+    const many: SiteListing[] = Array.from({ length: 12 }, (_, i) => ({
       slug: `site-${i}`,
       url: `https://site-${i}.artsy.dev`,
       thumbnailUrl: `/api/thumbnails/site-${i}`,
@@ -142,7 +142,7 @@ describe("SitesPage grid view", () => {
     renderWithBoot(<SitesPage sites={many} sort="newest" view="grid" />);
 
     const loading = screen.getAllByRole("img").map((img) => img.getAttribute("loading"));
-    expect(loading).toEqual(["eager", "eager", "eager", "eager", "lazy", "lazy"]);
+    expect(loading).toEqual([...Array(10).fill("eager"), "lazy", "lazy"]);
   });
 
   it("does not underline the placeholder text", () => {

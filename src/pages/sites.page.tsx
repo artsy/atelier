@@ -20,8 +20,8 @@ type SiteView = "list" | "grid";
 // One width for both views, so the controls stay put when switching.
 const PAGE_MAX_WIDTH = 1200;
 
-// Roughly the first row on a desktop-width grid.
-const EAGER_THUMBNAILS = 4;
+// Roughly the first two rows on a desktop-width grid.
+const EAGER_THUMBNAILS = 10;
 
 interface SitesPageProps {
   sites: SiteListing[];
