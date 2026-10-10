@@ -194,10 +194,19 @@ describe("SitesPage grid view", () => {
     expect(grid).toHaveStyle({ rowGap: "2.5rem", columnGap: "1.5rem" });
   });
 
-  it("does not render thumbnails in the list view", () => {
+  it("shows grid cards, not a table, in the grid view", () => {
+    renderWithBoot(<SitesPage sites={sites} sort="newest" view="grid" />);
+
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows a table, not grid cards, in the list view", () => {
     renderWithBoot(<SitesPage sites={sites} sort="newest" view="list" />);
 
-    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /^Screenshot of/ })).not.toBeInTheDocument();
   });
 });
 
