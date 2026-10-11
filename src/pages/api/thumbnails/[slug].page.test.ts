@@ -41,7 +41,7 @@ function get(query: Record<string, string | string[]>, method: "GET" | "POST" = 
 describe("GET /api/thumbnails/[slug]", () => {
   it("serves the stored image with long-lived immutable caching", async () => {
     mockGetThumbnail.mockResolvedValue(new Uint8Array([1, 2, 3]));
-    const { req, res } = get({ slug: "gallery" });
+    const { req, res } = get({ slug: "price-game" });
 
     await handler(req, res);
 
@@ -49,12 +49,12 @@ describe("GET /api/thumbnails/[slug]", () => {
     expect(res.getHeader("Content-Type")).toBe("image/jpeg");
     expect(res.getHeader("Cache-Control")).toBe("public, max-age=31536000, immutable");
     expect(Array.from(res._getData() as Buffer)).toEqual([1, 2, 3]);
-    expect(mockGetThumbnail).toHaveBeenCalledWith(client, bucket, "gallery");
+    expect(mockGetThumbnail).toHaveBeenCalledWith(client, bucket, "price-game");
   });
 
   it("returns 404 without long-lived caching when there is no thumbnail", async () => {
     mockGetThumbnail.mockResolvedValue(undefined);
-    const { req, res } = get({ slug: "gallery" });
+    const { req, res } = get({ slug: "price-game" });
 
     await handler(req, res);
 
@@ -80,7 +80,7 @@ describe("GET /api/thumbnails/[slug]", () => {
   });
 
   it("rejects a non-GET method with a 405", async () => {
-    const { req, res } = get({ slug: "gallery" }, "POST");
+    const { req, res } = get({ slug: "price-game" }, "POST");
 
     await handler(req, res);
 

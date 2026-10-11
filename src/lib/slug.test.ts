@@ -40,6 +40,8 @@ describe("validateSlug", () => {
       "api",
       "api-staging",
       "upload",
+      "uploads",
+      "gallery",
       "upload-staging",
       "admin",
       "admin-staging",
