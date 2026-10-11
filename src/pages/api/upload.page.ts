@@ -145,7 +145,7 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
       uploadedBy,
     });
 
-    // Delete-then-put per docs/PLAN.md's "replace, not merge" design. A
+    // Delete-then-put ("replace, not merge"; see docs/ARCHITECTURE.md). A
     // putFile failure mid-loop leaves the old content already gone and the
     // new content partially written — accepted as a PoC-scale tradeoff
     // rather than the more complex put-all-then-delete-orphans ordering.
