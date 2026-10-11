@@ -73,12 +73,12 @@ describe("listPrefix", () => {
 
   it("skips prefixes that cannot be sites, like the thumbnails folder", async () => {
     s3Mock.on(ListObjectsV2Command).resolves({
-      CommonPrefixes: [{ Prefix: "_thumbnails/" }, { Prefix: "gallery/" }],
+      CommonPrefixes: [{ Prefix: "_thumbnails/" }, { Prefix: "price-game/" }],
       IsTruncated: false,
     });
 
     const slugs = await listSlugs(client, bucket);
-    expect(slugs).toEqual(["gallery"]);
+    expect(slugs).toEqual(["price-game"]);
   });
 
   it("follows continuation tokens across pages", async () => {
@@ -109,19 +109,19 @@ describe("listPrefix", () => {
 describe("listSlugs", () => {
   it("returns top-level slugs from CommonPrefixes", async () => {
     s3Mock.on(ListObjectsV2Command).resolves({
-      CommonPrefixes: [{ Prefix: "gallery/" }, { Prefix: "hammer-price/" }],
+      CommonPrefixes: [{ Prefix: "price-game/" }, { Prefix: "hammer-price/" }],
       IsTruncated: false,
     });
 
     const slugs = await listSlugs(client, bucket);
-    expect(slugs).toEqual(["gallery", "hammer-price"]);
+    expect(slugs).toEqual(["price-game", "hammer-price"]);
   });
 
   it("follows continuation tokens across pages", async () => {
     s3Mock
       .on(ListObjectsV2Command)
       .resolvesOnce({
-        CommonPrefixes: [{ Prefix: "gallery/" }],
+        CommonPrefixes: [{ Prefix: "price-game/" }],
         IsTruncated: true,
         NextContinuationToken: "token-1",
       })
@@ -131,7 +131,7 @@ describe("listSlugs", () => {
       });
 
     const slugs = await listSlugs(client, bucket);
-    expect(slugs).toEqual(["gallery", "hammer-price"]);
+    expect(slugs).toEqual(["price-game", "hammer-price"]);
   });
 
   it("returns an empty array when the bucket has no slugs", async () => {
@@ -237,12 +237,12 @@ describe("putThumbnail", () => {
   it("stores the image under the reserved thumbnails prefix", async () => {
     s3Mock.on(PutObjectCommand).resolves({});
 
-    await putThumbnail(client, bucket, "gallery", new Uint8Array([1, 2, 3]));
+    await putThumbnail(client, bucket, "price-game", new Uint8Array([1, 2, 3]));
 
     const input = s3Mock.commandCalls(PutObjectCommand)[0]?.args[0].input;
     expect(input).toMatchObject({
       Bucket: bucket,
-      Key: "_thumbnails/gallery.jpg",
+      Key: "_thumbnails/price-game.jpg",
       ContentType: "image/jpeg",
     });
     expect(input?.Body).toEqual(new Uint8Array([1, 2, 3]));
@@ -251,11 +251,11 @@ describe("putThumbnail", () => {
 
 describe("getThumbnail", () => {
   it("returns the stored image bytes", async () => {
-    s3Mock.on(GetObjectCommand, { Bucket: bucket, Key: "_thumbnails/gallery.jpg" }).resolves({
+    s3Mock.on(GetObjectCommand, { Bucket: bucket, Key: "_thumbnails/price-game.jpg" }).resolves({
       Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) } as never,
     });
 
-    const bytes = await getThumbnail(client, bucket, "gallery");
+    const bytes = await getThumbnail(client, bucket, "price-game");
     expect(bytes && Array.from(bytes)).toEqual([1, 2, 3]);
   });
 
@@ -266,12 +266,12 @@ describe("getThumbnail", () => {
         Object.assign(new Error("The specified key does not exist."), { name: "NoSuchKey" }),
       );
 
-    expect(await getThumbnail(client, bucket, "gallery")).toBeUndefined();
+    expect(await getThumbnail(client, bucket, "price-game")).toBeUndefined();
   });
 
   it("rethrows unexpected errors", async () => {
     s3Mock.on(GetObjectCommand).rejects(new Error("Forbidden"));
 
-    await expect(getThumbnail(client, bucket, "gallery")).rejects.toThrow("Forbidden");
+    await expect(getThumbnail(client, bucket, "price-game")).rejects.toThrow("Forbidden");
   });
 });

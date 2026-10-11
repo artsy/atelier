@@ -13,10 +13,10 @@ beforeEach(() => {
 describe("listSites", () => {
   it("enriches each slug with its index.html upload metadata", async () => {
     s3Mock.on(ListObjectsV2Command).resolves({
-      CommonPrefixes: [{ Prefix: "gallery/" }, { Prefix: "hammer-price/" }],
+      CommonPrefixes: [{ Prefix: "art-quiz/" }, { Prefix: "hammer-price/" }],
       IsTruncated: false,
     });
-    s3Mock.on(HeadObjectCommand, { Bucket: bucket, Key: "gallery/index.html" }).resolves({
+    s3Mock.on(HeadObjectCommand, { Bucket: bucket, Key: "art-quiz/index.html" }).resolves({
       Metadata: { "uploaded-by": "roop@artsymail.com", "uploaded-at": "2026-07-20T12:00:00.000Z" },
     });
     s3Mock.on(HeadObjectCommand, { Bucket: bucket, Key: "hammer-price/index.html" }).resolves({
@@ -25,7 +25,11 @@ describe("listSites", () => {
 
     const sites = await listSites(client, bucket, "name");
     expect(sites).toEqual([
-      { slug: "gallery", uploadedBy: "roop@artsymail.com", uploadedAt: "2026-07-20T12:00:00.000Z" },
+      {
+        slug: "art-quiz",
+        uploadedBy: "roop@artsymail.com",
+        uploadedAt: "2026-07-20T12:00:00.000Z",
+      },
       { slug: "hammer-price", uploadedBy: "anonymous", uploadedAt: "2026-07-25T12:00:00.000Z" },
     ]);
   });
