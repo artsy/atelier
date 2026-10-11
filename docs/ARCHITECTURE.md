@@ -103,10 +103,10 @@ authentication.
   private (no public access, no S3 website hosting). CloudFront is the only
   reader.
 
-### 3. Upload app — Node
+### 3. Upload app — Next.js
 
-A single small Node service (Fastify or Express) that serves the UI and
-processes uploads. **Recommended host: the existing Artsy Kubernetes cluster
+A single Next.js (Pages Router, TypeScript) app that serves the UI and
+processes uploads through API routes. **Recommended host: the existing Artsy Kubernetes cluster
 via Hokusai, behind the shared nginx ingress** — it reuses infra and a deploy
 paradigm the team already operates, needs no new load balancer, and adds only
 fractional node capacity (see Cost & hosting). Hokusai is kubectl/Docker-based,
@@ -125,11 +125,14 @@ cost/ops trade-offs (see Cost & hosting).
 Endpoints:
 
 - `GET /` — drop-zone UI: a slug text field + a zip drop zone.
-- `GET /check?slug=<slug>` — returns whether the prefix already has content
+- `GET /sites` — browsable listing of all sites (thumbnail grid or table),
+  backed by `GET /api/sites` and `GET /api/thumbnails/<slug>`.
+- `GET /api/status` — health check; the Kubernetes readiness probe.
+- `GET /api/check?slug=<slug>` — returns whether the prefix already has content
   and, if so, **who last uploaded and when**, so the UI can show
   "User roop uploaded a site to `mydash` 2 days ago. Overwrite?" (drives the
   warn-before-overwrite UX).
-- `POST /upload` — multipart (slug + zip). Steps:
+- `POST /api/upload` — multipart (slug + zip). Steps:
   1. **Validate slug**: `^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`, lowercase,
      DNS-label-safe; reject reserved names (`upload`, `www`, `api`, etc.).
   2. **Validate zip**: confirm it is a real zip, enforce a size cap, and reject
@@ -185,7 +188,7 @@ The upload app actually lives at the repo root instead (decided during issue
 
 ```
 atelier/
-  app/                 Node upload service (UI + /upload + /check)
+  app/                 Node upload service (UI + /api/upload + /api/check)
   infra/               IaC (Terraform): S3, CloudFront + Function, ACM cert,
                        scoped S3-write IAM policy; Cloudflare DNS + Access
   hokusai/             Hokusai config + k8s manifests (+ Vault/ESO secret wiring)
@@ -262,8 +265,8 @@ coordination:
    only, but CloudFront is reachable at its public `*.cloudfront.net` URL.
    Without a Cloudflare-injected secret header enforced at CloudFront/WAF,
    anyone with that URL bypasses Access and reads every site. Ship in v1.
-3. **CSRF on `/upload` via the shared Access cookie.** JS on any
-   `<slug>.artsy.dev` site can POST to `atelier.artsy.dev/upload` with the
+3. **CSRF on `/api/upload` via the shared Access cookie.** JS on any
+   `<slug>.artsy.dev` site can POST to `atelier.artsy.dev/api/upload` with the
    visitor's Access cookie attached and overwrite other slugs. Require an
    Origin/Referer check or CSRF token from day one.
 4. **Cloudflare body-size limit caps site size.** Non-Enterprise plans cap

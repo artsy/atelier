@@ -8,6 +8,11 @@
 > truth for task status — this doc is kept for the design rationale behind
 > that seed (why things are scoped/sequenced the way they are), not as a live
 > spec.
+>
+> **Superseded stack:** this plan describes a vanilla Express app with a
+> no-build frontend. That app was replaced by a Next.js (Pages Router) rebuild;
+> see the [README](../README.md) and [ARCHITECTURE.md](ARCHITECTURE.md) for the
+> current stack, layout and endpoint paths (`/api/upload`, `/api/check`).
 
 ## Context
 

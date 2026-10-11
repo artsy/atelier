@@ -66,12 +66,26 @@ Note that this setup is actually all it takes to serve content out of that bucke
 
 - This repo provides a simple **drop-zone based UI** that allows anyone to take some html/etc content, zip it up into an archive and drop it into Atelier
 
-- It is set up as a **vanilla Express** (v5) app, deployed to Artsy's k8s cluster via Hokusai, that serves up:
-  - `GET /` — a **vanilla html page** with the hero image and drop zone UI
-  - `POST /upload` — endpoint that takes a site name, a zip archive, and then **unpacks and stores the zip content** to the appropriately named subfolder inside the `artsy-atelier` S3 bucket
-  - `GET /check` — endpoint that checks for subfolder existence to allow confirming of overwrites
+- It is a **Next.js** (Pages Router) app written in TypeScript, using React and Artsy's Palette design system, deployed to Artsy's k8s cluster via Hokusai. It serves:
+  - `GET /` — the drop zone UI
+  - `GET /sites` — a browsable listing of all sites, as a thumbnail grid or a table
+  - `POST /api/upload` — endpoint that takes a site name, a zip archive, and then **unpacks and stores the zip content** to the appropriately named subfolder inside the `artsy-atelier` S3 bucket
+  - `GET /api/check` — endpoint that checks for subfolder existence to allow confirming of overwrites
+  - `GET /api/sites` — endpoint that lists existing sites
+  - `GET /api/thumbnails/:slug` — a site's thumbnail, captured at upload time
+  - `GET /api/status` — health check, used as the Kubernetes readiness probe
 
-This is currently a prototype-y Claude-crafted app with no build process and thus no ability to accommodate a more sophisticated React UI. If we want to evolve in that direction, we should feel free to completely replace the current upload app with something more suitable.
+To run it locally:
+
+```sh
+yarn install
+cp .env.example .env  # then fill in the required values
+yarn dev              # next dev
+yarn test             # jest
+yarn lint && yarn typecheck
+```
+
+`yarn sites:list` prints the sites currently in the bucket.
 
 ---
 
@@ -88,7 +102,7 @@ While the typical upload flow is designed around a human using the drop-zone UI 
 An IRL example of using `curl` for this:
 
 ```sh
-curl -X POST https://atelier.artsy.dev/upload \
+curl -X POST https://atelier.artsy.dev/api/upload \
   -H "CF-Access-Client-Id: $ATELIER_CF_ACCESS_CLIENT_ID" \
   -H "CF-Access-Client-Secret: $ATELIER_CF_ACCESS_CLIENT_SECRET" \
   -H "X-Requested-By: it@artsymail.com" \
