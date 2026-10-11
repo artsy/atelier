@@ -12,7 +12,6 @@ export interface Config {
   publicDomain: string;
   thumbnails?: ThumbnailConfig;
   maxUploadBytes: number;
-  port: number;
 }
 
 // Exported so the client can mirror the *default* for its own heads-up-only
@@ -60,7 +59,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     publicDomain: env.PUBLIC_DOMAIN ?? "artsy.dev",
     ...(thumbnails && { thumbnails }),
     maxUploadBytes: num("MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES),
-    port: num("PORT", 8080),
   };
 }
 

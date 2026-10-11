@@ -88,7 +88,6 @@ function buildServer(overrides: { maxUploadBytes?: number; thumbnails?: typeof t
     cloudfrontDistributionId: distributionId,
     publicDomain,
     maxUploadBytes,
-    port: 8080,
     ...overrides,
   });
   return createTestServer(handler);

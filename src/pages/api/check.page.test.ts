@@ -27,7 +27,6 @@ beforeEach(() => {
     cloudfrontDistributionId: "E123",
     publicDomain: "artsy.dev",
     maxUploadBytes: 52428800,
-    port: 8080,
   });
 });
 
@@ -80,7 +79,7 @@ describe("GET /api/check", () => {
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(400);
-    expect(res._getJSONData().error).toMatch(/lowercase/i);
+    expect((res._getJSONData() as { error: string }).error).toMatch(/lowercase/i);
     expect(mockHeadIndex).not.toHaveBeenCalled();
   });
 
@@ -93,7 +92,7 @@ describe("GET /api/check", () => {
     await handler(req, res);
 
     expect(res._getStatusCode()).toBe(400);
-    expect(res._getJSONData().error).toMatch(/reserved/i);
+    expect((res._getJSONData() as { error: string }).error).toMatch(/reserved/i);
     expect(mockHeadIndex).not.toHaveBeenCalled();
   });
 

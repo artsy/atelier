@@ -1,8 +1,5 @@
 // Isomorphic: no Node-only imports, safe to use from either the server or
-// the browser. NOTE: public/app.js carries a hand-synced mirror of this
-// logic (it's a dependency-free classic script with no build step, so it
-// can't import this module). If you change this formatting, update that
-// mirror too — see public/app.js's `formatRelativeTime`.
+// the browser.
 
 const RELATIVE_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ["year", 365 * 24 * 60 * 60],
@@ -13,9 +10,8 @@ const RELATIVE_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
 ];
 
 // The feature-detect (rather than a bare `new Intl.RelativeTimeFormat(...)`)
-// is a harmless superset carried over from public/app.js's copy, which
-// needs it for older browsers; Node has always had this API, so the server
-// path never hits the null branch.
+// guards older browsers; Node has always had this API, so the server path
+// never hits the null branch.
 const relativeTimeFormatter =
   typeof Intl !== "undefined" && Intl.RelativeTimeFormat
     ? new Intl.RelativeTimeFormat("en", { numeric: "auto" })
