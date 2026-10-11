@@ -94,7 +94,7 @@ describe("GET /api/sites", () => {
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(400);
-      expect(res._getJSONData().error).toMatch(/sort/i);
+      expect((res._getJSONData() as { error: string }).error).toMatch(/sort/i);
       expect(mockListSites).not.toHaveBeenCalled();
     },
   );
