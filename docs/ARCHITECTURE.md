@@ -1,328 +1,169 @@
-# Atelier — Architecture & Stack
+# Atelier — Architecture
 
 > [!NOTE]
 >
-> This is a verbose Claude-managed document meant more for agent consumption
-> than for humans.
->
-> The bird's eye view of the architecture is described more succinctly in
-> the project README.
+> This covers the infrastructure and the design decisions behind it. The
+> bird's eye view is in the project [README](../README.md); the upload app's
+> code is the source of truth for its own behavior.
 
 ## Context
 
-Atelier is a new internal Artsy service for dead-simple hosting of static
-sites (typically LLM/agent-produced HTML/CSS/JS). A user drags a `.zip` onto a
-page, supplies a slug, and the site goes live at `<slug>.artsy.dev`
-within seconds. Access to _everything_ — the uploader and every hosted site —
-is gated to verified Artsy users; once in, anyone may overwrite any slug after
-confirming intent.
+Atelier hosts static sites (typically LLM/agent-produced HTML/CSS/JS). A user
+drags a `.zip` onto a page, supplies a slug, and the site goes live at
+`<slug>.artsy.dev` within seconds. Access to _everything_ — the uploader and
+every hosted site — is gated to verified Artsy users; once in, anyone may
+overwrite any slug after confirming intent.
 
-This document fixes the v1 architecture and stack — the target design we build
-toward. Decisions below reflect the original sketch (superseded by the tldraw
-diagram in the [README](../README.md)) plus these confirmed choices: **Cloudflare Access** for auth, **CloudFront + S3**
-(serverless serving, no pass-through server) for delivery, **Node on the
-existing Kubernetes cluster via Hokusai** for the upload app, the dedicated
-**`artsy.dev`** domain (isolated from `artsy.net` production cookies), and
-**SPA + MPA** support in v1.
+Hosted sites live flat under `*.artsy.dev`, not nested under
+`*.atelier.artsy.dev`. The nested wildcard hit a Cloudflare TLS limit (free
+Universal SSL covers only one wildcard level). `atelier.artsy.dev` (the app)
+and every `<slug>.artsy.dev` (a hosted site) are single-level subdomains of the
+one `artsy.dev` zone. This is the permanent design.
 
-**Decided: flat `*.artsy.dev` for hosted sites, not the nested
-`*.atelier.artsy.dev` originally sketched below.** The nested wildcard hit a
-Cloudflare free-tier TLS limit during the PoC (Cloudflare's free Universal SSL
-covers only one wildcard level) and was replaced with the flat `*.artsy.dev`
-(the "Abandoned detour" during the PoC's setup). **Confirmed 2026-07-20: this is the permanent design, not a
-stopgap** — there is no plan to revisit the nested scheme. The diagram, DNS
-records, and CloudFront alternate domain name below are written for the flat
-scheme: `atelier.artsy.dev` (the app) and every `<slug>.artsy.dev` (a hosted
-site) are both single-level subdomains of the one `artsy.dev` zone.
-
-## Architecture
+## Overview
 
 ```
  verified user
-   │  (SSO via Cloudflare Access — one policy over the whole zone)
+   │  (SSO via Cloudflare Access — one application over the whole zone)
    ▼
  Cloudflare (DNS proxied, wildcard TLS, Access JWT)
-   ├── atelier.artsy.dev            → origin: Node upload app (k8s via Hokusai)
+   ├── atelier.artsy.dev            → origin: Next.js upload app (k8s via Hokusai)
    └── *.artsy.dev                  → origin: CloudFront distribution
                                             │ CloudFront Function: Host → S3 prefix
                                             ▼
                                         S3  artsy-atelier  (private, OAC)
                                           braze-dash/  price-game/  …
-   Node upload app  ── writes (delete-then-put under slug/) ──►  S3
+   Upload app  ── writes (delete-then-put under slug/) ──►  S3
 ```
 
-### 1. Auth & DNS — Cloudflare Access
+S3 is the source of truth, with one prefix per slug and no database. The
+slug ↔ folder ↔ subdomain mapping is 1:1. Who uploaded a site, and when, is
+stored as S3 object metadata (`x-amz-meta-uploaded-by`, `x-amz-meta-uploaded-at`).
 
-**Status (2026-07-24):** Cloudflare Access is live and gates every
-`*.artsy.dev` subdomain (#52). The app-side piece below — reading and
-validating the JWT/email header — is not yet implemented; the upload app still
-treats any client-supplied uploader identity as unverified provenance, not
-authentication.
+## 1. Auth & DNS — Cloudflare Access
 
-- Cloudflare Access is **already in production at Artsy** (e.g.
-  `unleash.artsy.net`), so this reuses a proven pattern and existing IdP wiring
-  rather than introducing anything new.
-- One Cloudflare Access application covering **both** `atelier.artsy.dev` and
-  `*.artsy.dev`, policy = Artsy Google Workspace / IdP group. A single
-  Access JWT cookie is shared across the zone, so uploader and hosted sites are
-  gated uniformly.
-- The Node upload app reads the authenticated user's email from the
-  `Cf-Access-Authenticated-User-Email` header (validate the accompanying
-  `Cf-Access-Jwt-Assertion` against Cloudflare's public keys). No separate
-  login for the app.
-- Cloudflare provides wildcard TLS for `*.artsy.dev` automatically (free
-  Universal SSL, since it's a single wildcard level).
-- DNS records (proxied / orange-cloud):
-  - `atelier.artsy.dev` → the Node upload app origin.
-  - `*.artsy.dev` → the CloudFront distribution domain.
-  - `www.artsy.dev`, `upload.artsy.dev` → redirect to `atelier.artsy.dev`
-    (Cloudflare Redirect Rule, not a proxied origin) — see risk #1.
+- One Cloudflare Access application, "Atelier", has the destination
+  `*.artsy.dev`, which covers `atelier.artsy.dev` and every hosted site. It has
+  two policies: "All employees" (Allow) and a service token policy (Service
+  Auth) for programmatic access.
+- The upload app reads the uploader's identity from the
+  `Cf-Access-Authenticated-User-Email` header, falling back to `X-Requested-By`
+  for service-token callers, and records it as upload metadata.
+- Cloudflare provides wildcard TLS for `*.artsy.dev` (free Universal SSL, since
+  it's a single wildcard level). The zone's encryption mode is Full (strict), so
+  the CloudFront origin must present a valid certificate (see §2).
+- DNS records (proxied unless noted):
+  - `atelier.artsy.dev` → the upload app's k8s ingress.
+  - `*.artsy.dev` → the CloudFront distribution.
+  - `atelier-staging` and `next` → the staging ingress; `gallery` → a
+    Cloudflare Worker. Explicit records win over the wildcard, so these names
+    can never serve a hosted site.
+  - Two DNS-only CNAMEs with `_`-prefixed names appear to be ACM certificate
+    validation records. Keep them so the certificate can renew.
+  - `www`, `upload`, `uploads`, `admin` and the `artsy.dev` apex → 301
+    redirect to `atelier.artsy.dev` (Cloudflare Redirect Rules).
+  - Reserved slugs are listed in `src/lib/slug.ts`.
+- The `artsy.dev` zone is delegated to Cloudflare nameservers.
 
-### 2. Serving — CloudFront + S3, no server
+**Why a separate domain (`artsy.dev`, not under `artsy.net`).** Uploaded sites
+run arbitrary, LLM-authored JS. On `artsy.net` that JS would be _same-site with
+all of Artsy production_: able to read any `Domain=.artsy.net` cookie and to
+_set_ `.artsy.net` cookies (session fixation). `artsy.dev` is a different
+eTLD+1, which severs that relationship, so uploaded content cannot touch any
+`artsy.net` cookie. The `.dev` TLD is also HSTS-preloaded. Sites still share
+`.artsy.dev` with each other, which is accepted under the "anyone can overwrite
+anyone" model.
 
-- **Single CloudFront distribution** with alternate domain name
-  `*.artsy.dev` and a wildcard ACM cert (must be in **us-east-1** for
-  CloudFront).
-- **CloudFront Function** (viewer-request) does the host→prefix mapping and
-  routing. It routes by URL _shape_ (a viewer function has no network/async, so
-  it cannot check whether an S3 key exists — shape is enough for both site
-  types):
-  - read the `Host` header, take the leftmost label as `slug`;
-  - path has a **file extension** (`.js`, `.css`, `.png`, `.html`) → serve the
-    exact key `slug<path>` (assets — works for SPA and MPA);
-  - path **ends in `/`** → append `index.html` (`slug<path>index.html`) — MPA
-    directory index;
-  - otherwise (no extension, no trailing slash — a client-side route) → serve
-    the site root `slug/index.html` (**SPA fallback**).
-- This serves SPAs fully and MPAs that use `.html` files or trailing-slash
-  directory URLs. The only unsupported pattern is an MPA with "clean URLs"
-  (`/about` expecting `about/index.html`); if that's ever needed, upgrade this
-  one function to a Lambda@Edge origin-request handler that does a real S3
-  existence check before falling back.
-- **Origin = S3 via Origin Access Control (OAC)**; the bucket stays fully
-  private (no public access, no S3 website hosting). CloudFront is the only
-  reader.
+## 2. Serving — CloudFront + S3, no server
 
-### 3. Upload app — Node
+- A single CloudFront distribution with alternate domain name `*.artsy.dev` and
+  a wildcard ACM cert (must be in **us-east-1** for CloudFront).
+- A **CloudFront Function** (viewer-request) maps host to prefix. It routes by
+  URL _shape_, since a viewer function has no network access and cannot check
+  whether an S3 key exists:
+  - take the leftmost label of the `Host` header as `slug`;
+  - path has a **file extension** → serve the exact key `slug<path>`;
+  - path **ends in `/`** → append `index.html` (MPA directory index);
+  - otherwise (a client-side route) → serve `slug/index.html` (**SPA
+    fallback**).
+- This serves SPAs, and MPAs that use `.html` files or trailing-slash directory
+  URLs. MPAs with "clean URLs" (`/about` expecting `about/index.html`) are
+  unsupported. If that's needed, upgrade the function to a Lambda@Edge
+  origin-request handler that does a real S3 existence check.
+- The origin is S3 via **Origin Access Control (OAC)**. The bucket has Block
+  Public Access fully on and no website hosting, and a bucket policy scopes
+  `s3:GetObject` to this distribution.
+- CloudFront is somewhat redundant given Cloudflare is already CDN, TLS and
+  Access. A Cloudflare Worker reading S3 directly could replace it. We keep
+  CloudFront so that serving logic stays in AWS and S3 stays private via OAC.
 
-A single small Node service (Fastify or Express) that serves the UI and
-processes uploads. **Recommended host: the existing Artsy Kubernetes cluster
-via Hokusai, behind the shared nginx ingress** — it reuses infra and a deploy
-paradigm the team already operates, needs no new load balancer, and adds only
-fractional node capacity (see Cost & hosting). Hokusai is kubectl/Docker-based,
-and the cluster is **kOps-managed on EC2** (confirmed): deploy to the prod
-cluster `kubernetes-production-draco.artsy.systems` in us-east-1 — same region
-as S3/CloudFront. Because there's no EKS OIDC provider, **IRSA is not the path
-here**; instead give the pod a dedicated IAM policy scoped to write the
-`artsy-atelier` bucket only and deliver its credentials the way other Artsy
-apps do — via **Fortress**, the init-container secrets pattern (confirmed as
-the actual v1 mechanism, registered under project `atelier` for
-`production`/`staging` — see the `setenv` init container in
-`hokusai/production.yml`/`staging.yml` — not a placeholder for a later swap).
-App Runner and Lambda are viable alternatives with different
-cost/ops trade-offs (see Cost & hosting).
+## 3. Upload app — Next.js
 
-Endpoints:
+A Next.js (Pages Router, TypeScript) app on the existing Artsy Kubernetes
+cluster via Hokusai, behind the shared nginx ingress. Secrets are injected by
+**Fortress** via a `setenv` init container (see `hokusai/*.yml`).
 
-- `GET /` — drop-zone UI: a slug text field + a zip drop zone.
-- `GET /check?slug=<slug>` — returns whether the prefix already has content
-  and, if so, **who last uploaded and when**, so the UI can show
-  "User roop uploaded a site to `mydash` 2 days ago. Overwrite?" (drives the
-  warn-before-overwrite UX).
-- `POST /upload` — multipart (slug + zip). Steps:
-  1. **Validate slug**: `^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`, lowercase,
-     DNS-label-safe; reject reserved names (`upload`, `www`, `api`, etc.).
-  2. **Validate zip**: confirm it is a real zip, enforce a size cap, and reject
-     any entry with `..` or an absolute path (**zip-slip** guard). Optionally
-     require a top-level `index.html` (or auto-strip a single wrapping folder).
-  3. **Overwrite = replace, not merge**: if the `slug/` prefix has objects and
-     the request isn't confirmed, return a warning for the UI to confirm. On
-     confirm, **delete all existing keys under `slug/`**, then upload.
-  4. **Upload** each file to `slug/<path>` with a correct `Content-Type`
-     (derive via the `mime-types` package) and `Cache-Control` (see Caching).
-     Stamp each object with S3 user metadata `x-amz-meta-uploaded-by`
-     (the Access email) and `x-amz-meta-uploaded-at` (ISO timestamp). Use a
-     streaming unzip lib (`unzipper`) rather than loading the whole archive
-     into memory.
-  5. **Invalidate** the CloudFront path for the slug (`/slug/*`) so the edge
-     drops any cached copies of the previous version.
+`POST /api/upload` (multipart: slug + zip):
 
-**Tracking the last uploader (no database).** The warn step reads uploader +
-timestamp straight from S3 object metadata via a `HEAD` on the slug's
-`index.html` (set in step 4). This keeps v1 DB-free. If we later want a
-queryable list of all sites/uploaders, a tiny DynamoDB table `atelier-sites`
-(key = slug) is the clean upgrade — not needed for v1.
+1. **Validate the slug**: lowercase, DNS-label-safe, not on the reserved list.
+2. **Parse and validate the zip**: the archive is parsed as a stream
+   (`unzipper`), and anything that fails to parse is rejected. One cap,
+   `MAX_UPLOAD_BYTES`, applies to both the upload size and the total extracted
+   size. Entries with `..`, absolute or null-byte paths are rejected
+   (**zip-slip**). Extracted contents are held in memory until uploaded. macOS
+   junk (`__MACOSX`, `.DS_Store`, `._*`) is dropped, and a single wrapping
+   folder is collapsed so `index.html` lands at the site root.
+3. **Overwrite = replace, not merge**: if `slug/` has objects and the request
+   isn't confirmed, return a 409 with the previous uploader and time so the UI
+   can prompt. On confirm, delete all keys under `slug/`, then upload.
+4. **Upload** each file to `slug/<path>` with a correct `Content-Type`
+   (`mime-types`), `Cache-Control: no-cache`, and the uploader metadata.
+5. **Invalidate** the CloudFront path `/slug/*`. A failed invalidation is
+   logged but does not fail the upload.
 
-Because the browser POSTs the multipart directly to a container, there is no
-API-Gateway/Lambda payload cap to worry about.
+`GET /api/check?slug=` reads the uploader metadata from a `HEAD` on the slug's
+`index.html`, which drives the warn-before-overwrite prompt.
 
-### 4. Caching — freshness without a build step
+## 4. Caching — freshness without a build step
 
 Users iterate on a design with repeated uploads to the same slug, so stale
-assets are the main hazard — but we want to avoid asset fingerprinting and any
-build step. Strategy:
+assets are the main hazard. We want to avoid asset fingerprinting and any build
+step:
 
-- **Upload every object with `Cache-Control: no-cache`.** This does _not_ mean
-  "don't cache" — it means CloudFront and the browser may store the object but
-  **must revalidate** before reuse. Revalidation uses S3's `ETag`: unchanged
-  assets return a tiny `304 Not Modified`, and after an overwrite the ETag
-  changes so the next request pulls fresh bytes. Freshness is automatic, with
-  no filename hashing.
-- **Invalidate `/slug/*` on each overwrite** (step 5 above) as belt-and-
-  suspenders, so the edge never even serves a stale revalidation candidate.
-  CloudFront allows 1000 free invalidation paths/month and a wildcard counts as
-  one path — ample for internal fiddling.
-- The only cost is a conditional round-trip per asset; for internal, low-
-  traffic dashboards that is a non-issue and well worth avoiding a build
-  pipeline. If a specific site ever wants long-lived caching, it can opt into
-  fingerprinted filenames on its own — the platform doesn't require it.
+- **Every object is uploaded with `Cache-Control: no-cache`.** This does _not_
+  mean "don't cache". Caches may store the object but must revalidate before
+  reusing it. Revalidation uses S3's `ETag`: unchanged assets return a bodiless
+  `304`, and after an overwrite the ETag changes so the next request pulls
+  fresh bytes.
+- **CloudFront uses the `Managed-CachingOptimized` cache policy** (minimum TTL
+  1 s, default 24 h). The `no-cache` header makes the effective TTL the 1 s
+  minimum, so the edge serves a cached copy for up to a second before
+  revalidating. An object stored without a `Cache-Control` header would instead
+  be cached for the 24 h default; every upload from the app sets the header.
+  Cloudflare does not cache a site's HTML (`cf-cache-status: DYNAMIC`); its
+  caching of static assets has not been checked. HTML responses through
+  Cloudflare carry no `ETag`, so browsers refetch HTML in full, which costs
+  bandwidth only.
+- **`/slug/*` is invalidated on each overwrite**, so the edge drops copies of
+  the previous version immediately. A wildcard counts as a single invalidation
+  path. If an invalidation fails (logged, not fatal), stale content can be
+  served for about a second.
+- The cost is a conditional round-trip per asset, which is a non-issue for
+  low-traffic internal sites. A site that wants long-lived caching can opt into
+  fingerprinted filenames on its own.
 
-## Repo layout (proposed)
+## Risks & open considerations
 
-**Superseded:** the `app/`-nested layout below was the original proposal.
-The upload app actually lives at the repo root instead (decided during issue
-#2 scaffolding) — see [PLAN.md](PLAN.md#repo-layout) for the as-built layout.
-
-```
-atelier/
-  app/                 Node upload service (UI + /upload + /check)
-  infra/               IaC (Terraform): S3, CloudFront + Function, ACM cert,
-                       scoped S3-write IAM policy; Cloudflare DNS + Access
-  hokusai/             Hokusai config + k8s manifests (+ Vault/ESO secret wiring)
-  docs/                architecture docs and diagrams
-```
-
-## Key decisions & rationale
-
-- **S3 = source of truth, one prefix per slug.** No database in v1; slug↔folder
-  ↔subdomain is a clean 1:1 mapping.
-- **CloudFront Function over a pass-through server.** Eliminates the only
-  stateful serving component; host→prefix rewrite is a few lines at the edge.
-- **Cloudflare Access over AWS-native OIDC.** Simplest single-policy SSO gate
-  over a wildcard zone, with free wildcard TLS.
-
-## Cost & hosting
-
-Napkin scenario: 100 active users × ~20 visits/day, mostly single-page HTML
-with some assets → ~600K requests/month. With `Cache-Control: no-cache` + ETag,
-most repeat requests return bodiless `304`s, so real bytes transferred stay
-low.
-
-The **serving path is effectively free** at this scale and nowhere near any
-pricing cliff:
-
-| Component                            | Est. monthly                                      |
-| ------------------------------------ | ------------------------------------------------- |
-| Cloudflare Access                    | ~$0 marginal (already covers `unleash.artsy.net`) |
-| S3 storage + GETs                    | <$0.50                                            |
-| CloudFront requests + data-out       | ~$2–6                                             |
-| CloudFront Functions / invalidations | <$0.10                                            |
-
-The real variable is **where the upload app runs** — it's traffic-independent,
-so this is a pure hosting/ops lever, not a scaling concern:
-
-| Upload-app host                            | Est. monthly | Notes                                                                                                                                                                                                                                          |
-| ------------------------------------------ | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Existing k8s via Hokusai (recommended)** | **~$0–5**    | Fractional capacity on existing nodes; shared nginx ingress (no new LB); reuses team's deploy paradigm. Lowest cost + least new ops surface. Cluster is kOps-on-EC2 (`draco` prod, us-east-1); marginal cost is just fractional node capacity. |
-| AWS App Runner                             | ~$5–15       | Simplest standalone deploy, but bills a warm instance's provisioned memory regardless of load.                                                                                                                                                 |
-| AWS Lambda                                 | <$2          | Scales to zero (uploads are infrequent); cheapest, but a different deploy model and needs presigned-upload/streaming to dodge payload limits.                                                                                                  |
-
-**Bottom line: ~$5–15/month all-in, and as low as ~$5 on the existing k8s
-cluster via Hokusai.** Total cost is dominated by the upload app's hosting
-choice, not by traffic; the serverless serving layer is a rounding error.
-Confirm Atelier can ride Artsy's existing Cloudflare Access entitlement — a
-standalone 100-seat Zero Trust license (~$350/mo) would otherwise dwarf
-everything, but Access already fronts internal sites so this is almost
-certainly covered.
-
-## Risks & early blockers
-
-Must be resolved before/at v1 — several affect the design or need infra
-coordination:
-
-1. **Resolved: DNS.** Domain is **`artsy.dev`** — see the separate-domain
-   rationale below, serving every hosted site flat as `<slug>.artsy.dev` (the
-   originally-sketched nested `*.atelier.artsy.dev` is not coming back — see
-   the decision note in Context above). The `artsy.dev` zone is **already
-   delegated to Cloudflare nameservers** (a standing, one-time registrar-level
-   change made during the PoC; do not revert it), and all the records are now
-   live:
-   - `atelier.artsy.dev` (proxied) → the deployed Node upload app's k8s
-     ingress, resolving and serving through Access.
-   - `*.artsy.dev` (proxied) → the CloudFront distribution, with a wildcard
-     ACM cert (us-east-1). Being a single wildcard level, this is covered by
-     Cloudflare's free Universal SSL — no Advanced Certificate Manager add-on
-     needed.
-   - `www.artsy.dev` and `upload.artsy.dev` → redirect (301) to
-     `atelier.artsy.dev` via a Cloudflare Redirect Rule / Bulk Redirect List
-     (edge-only; no app or CloudFront-Function change needed). Both labels are
-     already on the reserved-slug list (`src/lib/slug.ts`), so they can never
-     be claimed by an upload.
-2. **Origin lock is mandatory (not hardening).** Hosted sites are internal-
-   only, but CloudFront is reachable at its public `*.cloudfront.net` URL.
-   Without a Cloudflare-injected secret header enforced at CloudFront/WAF,
-   anyone with that URL bypasses Access and reads every site. Ship in v1.
-3. **CSRF on `/upload` via the shared Access cookie.** JS on any
-   `<slug>.artsy.dev` site can POST to `atelier.artsy.dev/upload` with the
-   visitor's Access cookie attached and overwrite other slugs. Require an
-   Origin/Referer check or CSRF token from day one.
-4. **Cloudflare body-size limit caps site size.** Non-Enterprise plans cap
-   request bodies (~100 MB) and fail at the edge. Confirm Artsy's plan, or
-   switch to presigned direct-to-S3 zip upload. Separately, the k8s ingress
-   itself hit its own lower-layer default (1 MB, well under the app's 50 MB
-   `MAX_UPLOAD_BYTES`), causing large uploads to hang — a fix adding explicit
-   `proxy-body-size`/timeout annotations is in review as of 2026-07-24 (#69).
-5. **SPA fallback — decided: supported in v1.** Handled by the CloudFront
-   Function's shape-based routing (see §2), no extra infra. Known limitation:
-   MPA "clean URLs" without trailing slashes; upgrade to Lambda@Edge later if
-   needed.
-
-**Why a separate domain (`artsy.dev`, not `*.atelier.artsy.net`).** Uploaded
-sites run arbitrary, LLM-authored JS. On `artsy.net` that JS would be
-_same-site with all of Artsy production_ — able to read any `Domain=.artsy.net`
-cookie and to _set_ `.artsy.net` cookies (session fixation), with `SameSite=Lax`
-production cookies riding along on navigations. A separate registrable domain
-(`artsy.dev` is a different eTLD+1) severs that relationship entirely, so
-uploaded content cannot touch any `artsy.net` cookie. Bonus: the `.dev` TLD is
-HSTS-preloaded, so browsers force HTTPS. (Sites still share `.artsy.dev`
-with each other — accepted under the "anyone can overwrite anyone" model.)
-
-Noted, not launch-blocking: cross-subdomain trust / lookalike-slug phishing
-(inherent to the permissions model — consider reserving sensitive slugs);
-verifying Cloudflare's own cache respects `no-cache`; no delete / no
-site-listing in v1 (orphans + discoverability); Cloudflare→CloudFront host/SNI
-config (403 gotcha); zip symlink entries, extensionless files, and correct MIME
-for `.wasm`/`.svg`.
-
-## Hardening / open considerations (note, not blockers for a hackathon v1)
-
-- **Lock the CloudFront origin to Cloudflare.** Because Access enforces at the
-  Cloudflare edge, the raw `*.cloudfront.net` URL would bypass it. Mitigate by
-  having Cloudflare inject a secret header that a CloudFront Function / WAF rule
-  requires. Do this before treating the gate as trustworthy.
-- **CloudFront is somewhat redundant** given Cloudflare is already CDN + TLS +
-  Access. A Cloudflare Worker reading S3 directly could replace it entirely. We
-  keep CloudFront per the chosen design (serving logic stays in AWS, S3 stays
-  private via OAC); revisit only if the double-CDN hop is a problem.
-
-## Verification (once built)
-
-1. **Upload happy path**: drop a small zip with `index.html` under slug
-   `test-site`; confirm objects land under `s3://artsy-atelier/test-site/` with
-   correct content-types.
-2. **Serve**: visit `https://test-site.artsy.dev/` (through Access) and
-   confirm `index.html` renders and relative assets load.
-3. **Overwrite = replace**: re-upload a zip that omits a previously-present
-   file; confirm the stale file is gone from S3 and 404s when requested.
-4. **Warn-before-overwrite**: re-upload to an existing slug and confirm the UI
-   warns with the previous uploader's email and timestamp (read from S3 object
-   metadata) and requires confirmation.
-5. **Cache freshness**: change `index.html`, re-upload, and confirm the new
-   content appears on hard-_and_-normal reload (no fingerprinting); verify
-   objects carry `Cache-Control: no-cache` and responses show `ETag`/`304`
-   revalidation.
-6. **Auth gate**: hit both `atelier.artsy.dev` and a site subdomain in an
-   unauthenticated/incognito session; confirm Cloudflare Access blocks and the
-   raw CloudFront URL is not reachable unauthenticated (origin-lock check).
-7. **Security**: attempt a zip with a `../escape` entry and an invalid slug
-   (`Bad_Slug`); confirm both are rejected.
+1. **Origin lock (hardening, tracked in #150).** Cloudflare Access enforces at
+   the Cloudflare edge. The CloudFront origin should accept only requests that
+   came through Cloudflare. The plan is for Cloudflare to add a secret header
+   and for the CloudFront function (or a WAF rule) to reject requests without
+   it.
+2. **Request body limits.** Cloudflare may cap request body size depending on
+   the plan, rejecting larger uploads at the edge. The ingress sets
+   `proxy-body-size: 50m` and 300s read/send timeouts to match the app's
+   default `MAX_UPLOAD_BYTES` of 50 MB. If larger sites are needed, switch to
+   presigned direct-to-S3 uploads.
+3. **Non-atomic replace.** A failure mid-upload leaves the old content deleted
+   and the new content partially written. This is an accepted tradeoff against
+   the more complex put-all-then-delete-orphans ordering.

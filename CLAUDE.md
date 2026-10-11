@@ -65,10 +65,8 @@ Work is tracked as GitHub Issues on the [project board](https://github.com/orgs/
 
 ## Further reading
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the target v1 architecture
-  and stack
-- [docs/PLAN.md](docs/PLAN.md) — shape & architecture that seeded the
-  upload-app milestone; historical rationale, not a live spec
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — infrastructure and design
+  decisions (Cloudflare Access, CloudFront + S3, caching, risks)
 - Task tracking lives in the
   [Atelier GitHub project](https://github.com/orgs/artsy/projects/10),
   not in these docs
