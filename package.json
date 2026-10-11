@@ -7,8 +7,7 @@
     "node": ">=22 <23"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "dev:next": "next dev",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

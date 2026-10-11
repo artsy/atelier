@@ -27,7 +27,6 @@ beforeEach(() => {
     cloudfrontDistributionId: "E123",
     publicDomain: "artsy.dev",
     maxUploadBytes: 52428800,
-    port: 8080,
   });
 });
 

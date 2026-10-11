@@ -14,10 +14,9 @@ const base = {
 
 describe("loadConfig", () => {
   it("parses a complete env with correct types", () => {
-    const cfg = loadConfig(env({ ...base, PORT: "3000", MAX_UPLOAD_BYTES: "1024" }));
+    const cfg = loadConfig(env({ ...base, MAX_UPLOAD_BYTES: "1024" }));
     expect(cfg.s3Bucket).toBe("artsy-atelier");
     expect(cfg.cloudfrontDistributionId).toBe("E123");
-    expect(cfg.port).toBe(3000);
     expect(cfg.maxUploadBytes).toBe(1024);
   });
 
@@ -25,7 +24,6 @@ describe("loadConfig", () => {
     const cfg = loadConfig(env(base));
     expect(cfg.s3Region).toBe("us-east-1");
     expect(cfg.publicDomain).toBe("artsy.dev");
-    expect(cfg.port).toBe(8080);
     expect(cfg.maxUploadBytes).toBe(52428800);
   });
 
@@ -35,7 +33,7 @@ describe("loadConfig", () => {
   });
 
   it("throws on a non-numeric numeric var", () => {
-    expect(() => loadConfig(env({ ...base, PORT: "abc" }))).toThrow(/PORT/);
+    expect(() => loadConfig(env({ ...base, MAX_UPLOAD_BYTES: "abc" }))).toThrow(/MAX_UPLOAD_BYTES/);
   });
 
   describe("thumbnails", () => {
