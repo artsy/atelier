@@ -1,10 +1,12 @@
 import type { PutObjectCommandInput, S3Client } from "@aws-sdk/client-s3";
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
+import { validateSlug } from "./slug";
 
 export interface HeadIndexResult {
   exists: boolean;
@@ -19,8 +21,15 @@ function isNotFound(err: unknown): boolean {
     typeof err === "object" &&
     err !== null &&
     "name" in err &&
-    (err as { name: unknown }).name === "NotFound"
+    ((err as { name: unknown }).name === "NotFound" ||
+      (err as { name: unknown }).name === "NoSuchKey")
   );
+}
+
+// The leading underscore keeps this outside the slug namespace, so a site's
+// delete-then-put under `<slug>/` never touches its thumbnail.
+function thumbnailKey(slug: string): string {
+  return `_thumbnails/${slug}.jpg`;
 }
 
 export async function headIndex(
@@ -88,7 +97,10 @@ export async function listSlugs(client: S3Client, bucket: string): Promise<strin
     );
     for (const commonPrefix of result.CommonPrefixes ?? []) {
       if (commonPrefix.Prefix) {
-        slugs.push(commonPrefix.Prefix.replace(/\/$/, ""));
+        const slug = commonPrefix.Prefix.replace(/\/$/, "");
+        if (validateSlug(slug).valid) {
+          slugs.push(slug);
+        }
       }
     }
     continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
@@ -153,4 +165,38 @@ export async function putFile(
       },
     }),
   );
+}
+
+export async function putThumbnail(
+  client: S3Client,
+  bucket: string,
+  slug: string,
+  image: Uint8Array,
+): Promise<void> {
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: thumbnailKey(slug),
+      Body: image,
+      ContentType: "image/jpeg",
+    }),
+  );
+}
+
+export async function getThumbnail(
+  client: S3Client,
+  bucket: string,
+  slug: string,
+): Promise<Uint8Array | undefined> {
+  try {
+    const result = await client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: thumbnailKey(slug) }),
+    );
+    return await result.Body?.transformToByteArray();
+  } catch (err) {
+    if (isNotFound(err)) {
+      return undefined;
+    }
+    throw err;
+  }
 }

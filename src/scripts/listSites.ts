@@ -7,11 +7,13 @@ import { listSites, type SiteSort } from "../lib/sites";
 function parseSort(argv: string[]): SiteSort {
   const flag = argv.find((arg) => arg.startsWith("--sort="));
   const value = flag?.split("=")[1];
-  if (value === "recent" || value === "name") {
+  if (value === "oldest" || value === "newest" || value === "uploader" || value === "name") {
     return value;
   }
   if (value !== undefined) {
-    throw new Error(`Unknown --sort value "${value}" (expected "name" or "recent")`);
+    throw new Error(
+      `Unknown --sort value "${value}" (expected "name", "oldest", "newest" or "uploader")`,
+    );
   }
   return "name";
 }

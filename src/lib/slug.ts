@@ -1,6 +1,5 @@
-// NOTE: public/app.js carries a hand-synced mirror of this validation logic
-// (it's a dependency-free classic script with no build step, so it can't
-// import this module). If you change these rules, update that mirror too.
+// Isomorphic: no Node-only imports, safe to use from either the server or
+// the browser.
 
 export interface SlugValidationResult {
   valid: boolean;
@@ -17,6 +16,8 @@ const RESERVED_SLUGS = new Set([
   "api",
   "api-staging",
   "upload",
+  "uploads",
+  "gallery",
   "upload-staging",
   "admin",
   "admin-staging",
