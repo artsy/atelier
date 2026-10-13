@@ -105,7 +105,7 @@ An IRL example of using `curl` for this:
 curl -X POST https://atelier.artsy.dev/api/upload \
   -H "CF-Access-Client-Id: $ATELIER_CF_ACCESS_CLIENT_ID" \
   -H "CF-Access-Client-Secret: $ATELIER_CF_ACCESS_CLIENT_SECRET" \
-  -H "X-Requested-By: it@artsymail.com" \
+  -H "X-Requested-By: somebody@artsymail.com" \
   -F slug=dbt-elementary-report \
   -F zip=@report.zip \
   -F confirm=true
@@ -126,6 +126,6 @@ _TODO — perhaps after a KS where we decide which quirky Hackathon-esque develo
 [@anandaroop]: https://github.com/anandaroop
 [ux-screencap]: docs/images/atelier-ux.gif
 [architecture-diagram]: docs/images/atelier-architecture.png
-[tldraw-doc]: https://www.tldraw.com/p/jN9VTXW9jkSJsta6W8bd5?d=v125.179.2622.1522.page
+[tldraw-doc]: https://www.tldraw.com/p/YJc5Wl46VyKOAgnSmb_Tc?d=v254.234.2104.1221.page
 [circleci]: https://circleci.com/gh/artsy/atelier
 [github-release]: https://github.com/artsy/atelier/compare/release...staging?expand=1
