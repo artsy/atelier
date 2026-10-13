@@ -65,7 +65,7 @@ export default function IndexPage() {
         <UploadStatus state={state} onConfirm={confirmOverwrite} onDismiss={dismiss} />
 
         <HeroText variant="md" mt={3}>
-          <HeroLink href="https://gallery.artsy.dev" target="gallery" rel="noopener noreferrer">
+          <HeroLink href="/sites/" target="gallery" rel="noopener noreferrer">
             See what others have made &rarr;
           </HeroLink>
         </HeroText>
