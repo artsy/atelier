@@ -52,13 +52,9 @@ describe("IndexPage", () => {
       uploadedBy: "somebody@artsymail.com",
     });
 
+    expect(await screen.findByText(/There is already a site at/)).toBeInTheDocument();
     expect(
-      await screen.findByText(/There is already a site at/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /The current site was uploaded by somebody@artsymail.com/,
-      ),
+      screen.getByText(/The current site was uploaded by somebody@artsymail.com/),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
@@ -82,9 +78,7 @@ describe("IndexPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "No" }));
 
     await waitFor(() => {
-      expect(
-        screen.queryByText(/There is already a site at/),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/There is already a site at/)).not.toBeInTheDocument();
     });
     expect(FakeXhr.instances).toHaveLength(1);
   });
@@ -101,14 +95,11 @@ describe("IndexPage", () => {
   it("opens the file picker from the tagline button, which is keyboard accessible", async () => {
     const user = userEvent.setup();
     const { container } = renderWithBoot(<IndexPage />);
-    const input =
-      container.querySelector<HTMLInputElement>('input[type="file"]');
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     const click = jest.spyOn(HTMLInputElement.prototype, "click");
 
     await user.tab();
-    expect(
-      screen.getByRole("button", { name: /drop a zip, get a live site/i }),
-    ).toHaveFocus();
+    expect(screen.getByRole("button", { name: /drop a zip, get a live site/i })).toHaveFocus();
     await user.keyboard("{Enter}");
 
     expect(click).toHaveBeenCalledTimes(1);
@@ -147,8 +138,9 @@ describe("IndexPage", () => {
   it("links to the gallery in a new tab", () => {
     renderWithBoot(<IndexPage />);
 
-    expect(
-      screen.getByRole("link", { name: /See what others have made/ }),
-    ).toHaveAttribute("href", "/sites/");
+    expect(screen.getByRole("link", { name: /See what others have made/ })).toHaveAttribute(
+      "href",
+      "/sites/",
+    );
   });
 });
