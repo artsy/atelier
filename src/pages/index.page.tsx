@@ -62,11 +62,7 @@ export default function IndexPage() {
           </HeroText>
         </TaglineButton>
 
-        <UploadStatus
-          state={state}
-          onConfirm={confirmOverwrite}
-          onDismiss={dismiss}
-        />
+        <UploadStatus state={state} onConfirm={confirmOverwrite} onDismiss={dismiss} />
 
         <HeroText variant="md" mt={3}>
           <HeroLink href="/sites/" target="gallery" rel="noopener noreferrer">
