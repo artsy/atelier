@@ -169,4 +169,17 @@ describe("IndexPage", () => {
     expect(link).toHaveAttribute("target", "gallery");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
+
+  it("credits the background artwork, linking out to the Met in a new tab", () => {
+    renderWithBoot(<IndexPage />);
+
+    const credit = screen.getByRole("link", { name: "Image via Met Open Access" });
+
+    expect(credit).toHaveAttribute(
+      "href",
+      "https://www.metmuseum.org/art/collection/search/358631",
+    );
+    expect(credit).toHaveAttribute("target", "_blank");
+    expect(credit).toHaveAttribute("rel", "noopener noreferrer");
+  });
 });

@@ -8,6 +8,7 @@ import { DragHighlight } from "../components/dropzone/DragHighlight";
 import { HeroText } from "../components/dropzone/HeroText";
 import { UploadStatus } from "../components/dropzone/UploadStatus";
 import { HeroBackground } from "../components/HeroBackground";
+import { HeroImageCredit } from "../components/HeroImageCredit";
 import { useUpload } from "../hooks/useUpload";
 import { useWindowFileDrop } from "../hooks/useWindowFileDrop";
 
@@ -90,6 +91,8 @@ export default function IndexPage() {
         hidden
         onChange={handleFileInputChange}
       />
+
+      <HeroImageCredit position={"absolute"} bottom={1} right={1} />
 
       <AboutAtelierDrawer open={isAboutVisible} onClose={() => setIsAboutVisible(false)} />
     </>
