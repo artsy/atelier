@@ -1,7 +1,8 @@
-import { Flex } from "@artsy/palette";
+import { Button, Flex } from "@artsy/palette";
 import Head from "next/head";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import styled from "styled-components";
+import { AboutAtelierDrawer } from "../components/AboutAtelierDrawer";
 import { ButtonLink } from "../components/ButtonLink";
 import { DragHighlight } from "../components/dropzone/DragHighlight";
 import { HeroText } from "../components/dropzone/HeroText";
@@ -33,6 +34,7 @@ export default function IndexPage() {
   const { state, chooseFile, confirmOverwrite, dismiss } = useUpload();
   const { isDragging } = useWindowFileDrop(chooseFile);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isAboutVisible, setIsAboutVisible] = useState(false);
 
   function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     chooseFile(event.target.files?.[0]);
@@ -66,6 +68,9 @@ export default function IndexPage() {
         <UploadStatus state={state} onConfirm={confirmOverwrite} onDismiss={dismiss} />
 
         <Flex gap={4} mt={2} flexWrap="wrap" justifyContent="center">
+          <Button bg="white" color="black" onClick={() => setIsAboutVisible(true)}>
+            What’s this all about?
+          </Button>
           <ButtonLink
             bg="white"
             color="black"
@@ -85,6 +90,8 @@ export default function IndexPage() {
         hidden
         onChange={handleFileInputChange}
       />
+
+      <AboutAtelierDrawer open={isAboutVisible} onClose={() => setIsAboutVisible(false)} />
     </>
   );
 }

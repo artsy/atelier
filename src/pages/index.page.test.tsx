@@ -143,6 +143,24 @@ describe("IndexPage", () => {
     });
   });
 
+  it("opens and closes the about drawer from its button", async () => {
+    renderWithBoot(<IndexPage />);
+    const isOpen = () => {
+      const drawer = screen
+        .getByRole("button", { name: "Close" })
+        .closest<HTMLElement>("[style*='pointer-events']");
+      return drawer?.style.pointerEvents === "auto";
+    };
+
+    expect(isOpen()).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "What’s this all about?" }));
+    expect(isOpen()).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(isOpen()).toBe(false);
+  });
+
   it("links to the gallery in a new tab", () => {
     renderWithBoot(<IndexPage />);
     const link = screen.getByRole("link", { name: /See what others have made/ });
