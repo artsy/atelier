@@ -1,7 +1,13 @@
 import CloseIcon from "@artsy/icons/CloseIcon";
-import { Clickable, Drawer, type DrawerProps, Flex, Separator, Text } from "@artsy/palette";
+import { Clickable, Drawer, type DrawerProps, Flex, Image, Separator, Text } from "@artsy/palette";
 import Link from "next/link";
 import styled from "styled-components";
+import { MediaLightbox } from "./MediaLightbox";
+
+const HOW_TO_POSTER_SRC = "/atelier-howto-poster.webp";
+const HOW_TO_VIDEO_SRC = "/atelier-howto.mp4";
+const HOW_TO_ALT =
+  "Screen recording: zipping a site folder and dropping the zip onto the Atelier homepage";
 
 interface AboutAtelierDrawerProps extends DrawerProps {
   open: boolean;
@@ -90,6 +96,33 @@ export const AboutAtelierDrawer: React.FC<AboutAtelierDrawerProps> = (props) => 
         </Text>
 
         <Text>
+          Depending on how you create your site, the whole process might look something like this:
+        </Text>
+
+        <MediaLightbox
+          label={HOW_TO_ALT}
+          media={
+            <video
+              src={HOW_TO_VIDEO_SRC}
+              poster={HOW_TO_POSTER_SRC}
+              aria-label={HOW_TO_ALT}
+              autoPlay
+              loop
+              muted
+              playsInline
+              controls
+            />
+          }
+        >
+          <HowToFrame>
+            <Image src={HOW_TO_POSTER_SRC} alt="" lazyLoad />
+            <ViewTutorial>
+              <span aria-hidden>▶︎</span> View 30-second demo
+            </ViewTutorial>
+          </HowToFrame>
+        </MediaLightbox>
+
+        <Text>
           If you choose a name that’s already in use, you will be warned about overwriting an
           existing site but you <b>won’t</b> be prevented. The Atelier is a low-friction, high-trust
           realm. Please keep this in mind to avoid clobbering others’ work.
@@ -123,7 +156,7 @@ export const AboutAtelierDrawer: React.FC<AboutAtelierDrawerProps> = (props) => 
           Just re-upload a zip with the exact same name to completely replace the previous version.
           So if you previously uploaded <code>my-cool-dashboard.zip</code> you will update or
           recreate that <code>my-cool-dashboard</code> folder on your computer, zip it up again, and
-          drop the zip here again.
+          drop the zip here again, just as shown above.
         </Text>
 
         <Separator mt={1} />
@@ -167,5 +200,29 @@ const OrderedList = styled.ol`
 
   li {
     margin: 0.5em 0;
+  }
+`;
+
+const HowToFrame = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1200 / 628;
+`;
+
+const ViewTutorial = styled.span`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.75em 1.5em;
+  border-radius: 2em;
+  background: white;
+  color: black;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: transform 0.15s ease;
+
+  button:hover & {
+    transform: translate(-50%, -50%) scale(1.05);
   }
 `;
