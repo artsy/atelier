@@ -135,12 +135,20 @@ describe("IndexPage", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
-  it("links to the gallery in a new tab", () => {
+  it("renders the title in regular weight", () => {
     renderWithBoot(<IndexPage />);
 
-    expect(screen.getByRole("link", { name: /See what others have made/ })).toHaveAttribute(
-      "href",
-      "/sites/",
-    );
+    expect(screen.getByRole("heading", { level: 1, name: "The Atelier" })).toHaveStyle({
+      fontWeight: 400,
+    });
+  });
+
+  it("links to the gallery in a new tab", () => {
+    renderWithBoot(<IndexPage />);
+    const link = screen.getByRole("link", { name: /See what others have made/ });
+
+    expect(link).toHaveAttribute("href", "/sites/");
+    expect(link).toHaveAttribute("target", "gallery");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });

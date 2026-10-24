@@ -2,8 +2,9 @@ import { Flex } from "@artsy/palette";
 import Head from "next/head";
 import { useRef } from "react";
 import styled from "styled-components";
+import { ButtonLink } from "../components/ButtonLink";
 import { DragHighlight } from "../components/dropzone/DragHighlight";
-import { HeroLink, HeroText } from "../components/dropzone/HeroText";
+import { HeroText } from "../components/dropzone/HeroText";
 import { UploadStatus } from "../components/dropzone/UploadStatus";
 import { HeroBackground } from "../components/HeroBackground";
 import { useUpload } from "../hooks/useUpload";
@@ -64,11 +65,17 @@ export default function IndexPage() {
 
         <UploadStatus state={state} onConfirm={confirmOverwrite} onDismiss={dismiss} />
 
-        <HeroText variant="md" mt={3}>
-          <HeroLink href="/sites/" target="gallery" rel="noopener noreferrer">
-            See what others have made &rarr;
-          </HeroLink>
-        </HeroText>
+        <Flex gap={4} mt={2} flexWrap="wrap" justifyContent="center">
+          <ButtonLink
+            bg="white"
+            color="black"
+            href="/sites/"
+            target="gallery"
+            rel="noopener noreferrer"
+          >
+            See what others have made ↗︎
+          </ButtonLink>
+        </Flex>
       </Flex>
 
       <input
