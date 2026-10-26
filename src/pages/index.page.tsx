@@ -1,37 +1,21 @@
-import { Flex } from "@artsy/palette";
+import { Button, Clickable, Flex } from "@artsy/palette";
 import Head from "next/head";
-import { useRef } from "react";
-import styled from "styled-components";
+import { useRef, useState } from "react";
+import { AboutAtelierDrawer } from "../components/AboutAtelierDrawer";
+import { ButtonLink } from "../components/ButtonLink";
 import { DragHighlight } from "../components/dropzone/DragHighlight";
-import { HeroLink, HeroText } from "../components/dropzone/HeroText";
+import { HeroText } from "../components/dropzone/HeroText";
 import { UploadStatus } from "../components/dropzone/UploadStatus";
 import { HeroBackground } from "../components/HeroBackground";
+import { HeroImageCredit } from "../components/HeroImageCredit";
 import { useUpload } from "../hooks/useUpload";
 import { useWindowFileDrop } from "../hooks/useWindowFileDrop";
-
-const TaglineButton = styled.button`
-  padding: 1rem 2rem;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: background 0.15s ease;
-
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  &:disabled {
-    cursor: default;
-  }
-`;
 
 export default function IndexPage() {
   const { state, chooseFile, confirmOverwrite, dismiss } = useUpload();
   const { isDragging } = useWindowFileDrop(chooseFile);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isAboutVisible, setIsAboutVisible] = useState(false);
 
   function handleFileInputChange(event: React.ChangeEvent<HTMLInputElement>) {
     chooseFile(event.target.files?.[0]);
@@ -52,23 +36,33 @@ export default function IndexPage() {
           The Atelier
         </HeroText>
 
-        <TaglineButton
-          type="button"
-          disabled={state.status === "busy"}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <HeroText variant="lg-display" fontWeight="bold">
+        <HeroText variant="lg-display" fontWeight="bold">
+          <Clickable
+            padding="1rem"
+            cursor="pointer"
+            disabled={state.status === "busy"}
+            onClick={() => fileInputRef.current?.click()}
+          >
             A place to hang your html sketches. Drop a zip, get a live site.
-          </HeroText>
-        </TaglineButton>
+          </Clickable>
+        </HeroText>
 
         <UploadStatus state={state} onConfirm={confirmOverwrite} onDismiss={dismiss} />
 
-        <HeroText variant="md" mt={3}>
-          <HeroLink href="/sites/" target="gallery" rel="noopener noreferrer">
-            See what others have made &rarr;
-          </HeroLink>
-        </HeroText>
+        <Flex gap={4} mt={2} flexWrap="wrap" justifyContent="center">
+          <Button bg="white" color="black" onClick={() => setIsAboutVisible(true)}>
+            What’s this all about?
+          </Button>
+          <ButtonLink
+            bg="white"
+            color="black"
+            href="/sites/"
+            target="gallery"
+            rel="noopener noreferrer"
+          >
+            See what others have made ↗︎
+          </ButtonLink>
+        </Flex>
       </Flex>
 
       <input
@@ -78,6 +72,10 @@ export default function IndexPage() {
         hidden
         onChange={handleFileInputChange}
       />
+
+      <HeroImageCredit position={"absolute"} bottom={1} right={1} />
+
+      <AboutAtelierDrawer open={isAboutVisible} onClose={() => setIsAboutVisible(false)} />
     </>
   );
 }

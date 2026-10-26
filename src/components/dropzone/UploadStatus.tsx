@@ -61,7 +61,7 @@ function StatusContent({ state, onConfirm, onDismiss }: UploadStatusProps) {
 
 export function UploadStatus(props: UploadStatusProps) {
   return (
-    <Box role="status" mt={4}>
+    <Box role="status" my={2}>
       <StatusContent {...props} />
     </Box>
   );

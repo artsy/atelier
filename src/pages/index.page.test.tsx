@@ -135,12 +135,51 @@ describe("IndexPage", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
-  it("links to the gallery in a new tab", () => {
+  it("renders the title in regular weight", () => {
     renderWithBoot(<IndexPage />);
 
-    expect(screen.getByRole("link", { name: /See what others have made/ })).toHaveAttribute(
+    expect(screen.getByRole("heading", { level: 1, name: "The Atelier" })).toHaveStyle({
+      fontWeight: 400,
+    });
+  });
+
+  it("opens and closes the about drawer from its button", async () => {
+    renderWithBoot(<IndexPage />);
+    const isOpen = () => {
+      const drawer = screen
+        .getByRole("button", { name: "Close" })
+        .closest<HTMLElement>("[style*='pointer-events']");
+      return drawer?.style.pointerEvents === "auto";
+    };
+
+    expect(isOpen()).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "What’s this all about?" }));
+    expect(isOpen()).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(isOpen()).toBe(false);
+  });
+
+  it("links to the gallery in a new tab", () => {
+    renderWithBoot(<IndexPage />);
+    const link = screen.getByRole("link", { name: /See what others have made/ });
+
+    expect(link).toHaveAttribute("href", "/sites/");
+    expect(link).toHaveAttribute("target", "gallery");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("credits the background artwork, linking out to the Met in a new tab", () => {
+    renderWithBoot(<IndexPage />);
+
+    const credit = screen.getByRole("link", { name: "Image via Met Open Access" });
+
+    expect(credit).toHaveAttribute(
       "href",
-      "/sites/",
+      "https://www.metmuseum.org/art/collection/search/358631",
     );
+    expect(credit).toHaveAttribute("target", "_blank");
+    expect(credit).toHaveAttribute("rel", "noopener noreferrer");
   });
 });
