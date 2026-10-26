@@ -1,7 +1,6 @@
-import { Button, Flex } from "@artsy/palette";
+import { Button, Clickable, Flex } from "@artsy/palette";
 import Head from "next/head";
 import { useRef, useState } from "react";
-import styled from "styled-components";
 import { AboutAtelierDrawer } from "../components/AboutAtelierDrawer";
 import { ButtonLink } from "../components/ButtonLink";
 import { DragHighlight } from "../components/dropzone/DragHighlight";
@@ -11,25 +10,6 @@ import { HeroBackground } from "../components/HeroBackground";
 import { HeroImageCredit } from "../components/HeroImageCredit";
 import { useUpload } from "../hooks/useUpload";
 import { useWindowFileDrop } from "../hooks/useWindowFileDrop";
-
-const TaglineButton = styled.button`
-  padding: 1rem 2rem;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: background 0.15s ease;
-
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  &:disabled {
-    cursor: default;
-  }
-`;
 
 export default function IndexPage() {
   const { state, chooseFile, confirmOverwrite, dismiss } = useUpload();
@@ -56,15 +36,16 @@ export default function IndexPage() {
           The Atelier
         </HeroText>
 
-        <TaglineButton
-          type="button"
-          disabled={state.status === "busy"}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <HeroText variant="lg-display" fontWeight="bold">
+        <HeroText variant="lg-display" fontWeight="bold">
+          <Clickable
+            padding="1rem"
+            cursor="pointer"
+            disabled={state.status === "busy"}
+            onClick={() => fileInputRef.current?.click()}
+          >
             A place to hang your html sketches. Drop a zip, get a live site.
-          </HeroText>
-        </TaglineButton>
+          </Clickable>
+        </HeroText>
 
         <UploadStatus state={state} onConfirm={confirmOverwrite} onDismiss={dismiss} />
 
