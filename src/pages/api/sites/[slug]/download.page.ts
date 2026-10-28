@@ -10,18 +10,40 @@ export const config = {
   api: { responseLimit: false },
 };
 
-function appendAndWait(archive: archiver.Archiver, body: Readable, name: string): Promise<void> {
+function appendAndWait(
+  archive: archiver.Archiver,
+  body: Readable,
+  name: string,
+  signal: AbortSignal,
+): Promise<void> {
   return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      archive.off("entry", onEntry);
+      archive.off("error", onFailure);
+      body.off("error", onFailure);
+      signal.removeEventListener("abort", onAbort);
+    };
     const onEntry = () => {
-      archive.off("error", onError);
+      cleanup();
       resolve();
     };
-    const onError = (err: Error) => {
-      archive.off("entry", onEntry);
+    // Archiver doesn't forward errors from its input streams, so the body is
+    // watched directly. Destroying it releases the S3 socket.
+    const onFailure = (err: Error) => {
+      cleanup();
+      body.destroy();
       reject(err);
     };
-    archive.once("entry", onEntry);
-    archive.once("error", onError);
+    const onAbort = () => onFailure(new Error("Download cancelled"));
+
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    archive.on("entry", onEntry);
+    archive.on("error", onFailure);
+    body.on("error", onFailure);
+    signal.addEventListener("abort", onAbort);
     archive.append(body, { name });
   });
 }
@@ -53,9 +75,11 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
   res.setHeader("Cache-Control", "no-store");
 
   const archive = archiver("zip");
+  const cancellation = new AbortController();
   archive.pipe(res);
   res.once("close", () => {
     if (!res.writableEnded) {
+      cancellation.abort();
       archive.abort();
     }
   });
@@ -63,8 +87,8 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
   try {
     // One S3 request at a time, so a large site can't exhaust the SDK's sockets.
     for (const key of keys) {
-      const body = await getObjectStream(client, bucket, key);
-      await appendAndWait(archive, body, key.slice(`${slug}/`.length));
+      const body = await getObjectStream(client, bucket, key, cancellation.signal);
+      await appendAndWait(archive, body, key.slice(`${slug}/`.length), cancellation.signal);
     }
     await archive.finalize();
     console.log(JSON.stringify({ event: "site_download", slug, files: keys.length }));
@@ -73,6 +97,9 @@ export default withErrorHandler(async (req: NextApiRequest, res: NextApiResponse
     // browser would save a truncated zip as if it were complete.
     archive.unpipe(res);
     archive.abort();
+    if (cancellation.signal.aborted) {
+      return;
+    }
     if (!res.headersSent) {
       throw err;
     }

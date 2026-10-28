@@ -266,6 +266,16 @@ describe("getObjectStream", () => {
     expect(Buffer.concat(chunks).toString()).toBe("<html></html>");
   });
 
+  it("passes the abort signal to the S3 request", async () => {
+    s3Mock.on(GetObjectCommand).resolves({ Body: Readable.from([]) as never });
+    const controller = new AbortController();
+
+    await getObjectStream(client, bucket, "price-game/index.html", controller.signal);
+
+    const options = (s3Mock.commandCalls(GetObjectCommand)[0]?.args as unknown[])[1];
+    expect(options).toEqual({ abortSignal: controller.signal });
+  });
+
   it("throws when the object has no body", async () => {
     s3Mock.on(GetObjectCommand).resolves({});
 

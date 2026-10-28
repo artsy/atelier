@@ -188,8 +188,12 @@ export async function getObjectStream(
   client: S3Client,
   bucket: string,
   key: string,
+  signal?: AbortSignal,
 ): Promise<Readable> {
-  const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const result = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key }),
+    signal && { abortSignal: signal },
+  );
   if (!(result.Body instanceof Readable)) {
     throw new Error(`No readable body for ${key}`);
   }

@@ -1,3 +1,6 @@
+import { once } from "node:events";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import type { S3Client } from "@aws-sdk/client-s3";
 import type { Response } from "superagent";
@@ -104,6 +107,78 @@ describe("GET /api/sites/[slug]/download", () => {
       .mockRejectedValueOnce(new Error("Forbidden"));
 
     await expect(get("/?slug=price-game")).rejects.toThrow();
+  });
+
+  it("settles and destroys the body when it errors after the request resolved", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const body = new Readable({ read() {} });
+    mockListPrefix.mockResolvedValue(["price-game/index.html"]);
+    mockGetObjectStream.mockResolvedValueOnce(body);
+    setTimeout(() => body.destroy(new Error("socket hang up")), 10);
+
+    await get("/?slug=price-game").catch(() => undefined);
+
+    expect(body.destroyed).toBe(true);
+  });
+
+  describe("when the client disconnects mid-transfer", () => {
+    async function startTransfer() {
+      const body = new Readable({ read() {} });
+      body.push(Buffer.from("partial"));
+      mockListPrefix.mockResolvedValue(["price-game/index.html"]);
+      mockGetObjectStream.mockResolvedValueOnce(body);
+
+      const server = createTestServer(handler);
+      await new Promise<void>((resolve) => server.listen(0, resolve));
+      const { port } = server.address() as AddressInfo;
+      const clientRequest = http.get({ port, path: "/?slug=price-game" });
+      clientRequest.on("error", () => undefined);
+      await waitFor(() => mockGetObjectStream.mock.calls.length > 0);
+      return { body, server, clientRequest };
+    }
+
+    async function waitFor(condition: () => boolean) {
+      while (!condition()) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+    }
+
+    it("destroys the S3 body so its socket is released", async () => {
+      const { body, server, clientRequest } = await startTransfer();
+
+      clientRequest.destroy();
+      if (!body.destroyed) {
+        await once(body, "close");
+      }
+
+      expect(body.destroyed).toBe(true);
+      server.close();
+    });
+
+    it("aborts the S3 request", async () => {
+      const { server, clientRequest } = await startTransfer();
+      const signal = mockGetObjectStream.mock.calls[0]?.[3];
+
+      clientRequest.destroy();
+      await waitFor(() => signal?.aborted === true);
+
+      expect(signal?.aborted).toBe(true);
+      server.close();
+    });
+
+    it("does not log the cancellation as an error", async () => {
+      const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+      const { body, server, clientRequest } = await startTransfer();
+
+      clientRequest.destroy();
+      if (!body.destroyed) {
+        await once(body, "close");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(consoleError).not.toHaveBeenCalled();
+      server.close();
+    });
   });
 
   it("lists the slug's prefix in the configured bucket", async () => {
