@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import type { PutObjectCommandInput, S3Client } from "@aws-sdk/client-s3";
 import {
   DeleteObjectsCommand,
@@ -181,6 +182,22 @@ export async function putThumbnail(
       ContentType: "image/jpeg",
     }),
   );
+}
+
+export async function getObjectStream(
+  client: S3Client,
+  bucket: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<Readable> {
+  const result = await client.send(
+    new GetObjectCommand({ Bucket: bucket, Key: key }),
+    signal && { abortSignal: signal },
+  );
+  if (!(result.Body instanceof Readable)) {
+    throw new Error(`No readable body for ${key}`);
+  }
+  return result.Body;
 }
 
 export async function getThumbnail(

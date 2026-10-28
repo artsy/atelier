@@ -53,7 +53,7 @@ export function SiteTable({ sites }: { sites: SiteListing[] }) {
     <Table>
       <VisuallyHiddenHead>
         <tr>
-          {["Preview", "Slug", "Uploaded by", "Uploaded"].map((heading) => (
+          {["Preview", "Slug", "Uploaded by", "Uploaded", "Download"].map((heading) => (
             <th key={heading} scope="col">
               {heading}
             </th>
@@ -103,6 +103,18 @@ export function SiteTable({ sites }: { sites: SiteListing[] }) {
                   ) : (
                     "—"
                   )}
+                </Text>
+              </Cell>
+              <Cell>
+                <Text variant="sm">
+                  <SiteLink
+                    href={`/api/sites/${site.slug}/download`}
+                    download
+                    aria-label={`Download ${site.slug}`}
+                    textDecoration="none"
+                  >
+                    Download
+                  </SiteLink>
                 </Text>
               </Cell>
             </tr>
