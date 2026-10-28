@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -9,6 +10,7 @@ import {
 import { mockClient } from "aws-sdk-client-mock";
 import {
   deletePrefix,
+  getObjectStream,
   getThumbnail,
   headIndex,
   listPrefix,
@@ -246,6 +248,30 @@ describe("putThumbnail", () => {
       ContentType: "image/jpeg",
     });
     expect(input?.Body).toEqual(new Uint8Array([1, 2, 3]));
+  });
+});
+
+describe("getObjectStream", () => {
+  it("returns the object body as a readable stream", async () => {
+    s3Mock.on(GetObjectCommand, { Bucket: bucket, Key: "price-game/index.html" }).resolves({
+      Body: Readable.from([Buffer.from("<html></html>")]) as never,
+    });
+
+    const stream = await getObjectStream(client, bucket, "price-game/index.html");
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+    expect(Buffer.concat(chunks).toString()).toBe("<html></html>");
+  });
+
+  it("throws when the object has no body", async () => {
+    s3Mock.on(GetObjectCommand).resolves({});
+
+    await expect(getObjectStream(client, bucket, "price-game/index.html")).rejects.toThrow(
+      "price-game/index.html",
+    );
   });
 });
 
