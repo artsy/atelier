@@ -1,0 +1,22 @@
+two review findings:
+
+1) 
+
+<pasted_content id="c971">
+### Medium finding
+
+**Location:** `src/pages/api/sites/[slug]/download.page.ts:57-60`
+
+Cancelling a download during a large S3 transfer only aborts the archiver; `abort()` neither destroys the input body nor settles the pending `appendAndWait`. Once the closed response stops draining, the S3 stream can remain paused with an occupied socket, and repeated cancellations can exhaust the shared client (`src/lib/deps.ts:19-23`). Cancel the active S3 request, destroy its body, and settle the pending wait on disconnect.
+</pasted_content id="c971">
+
+
+2) 
+
+<pasted_content id="c971">
+### Medium finding
+
+**Location:** `src/pages/api/sites/[slug]/download.page.ts:23-25`
+
+`getObjectStream` returns the live S3 body (`src/lib/s3.ts:192-196`), which can emit an error after the GET resolves. Archiver 7 does not forward input-stream errors through its internal pipe, so listening only on `archive` leaves this wait pending and bypasses the response cleanup. Handle `body` errors explicitly and reject the wait so the route aborts the download.
+</pasted_content id="c971">
