@@ -1,0 +1,105 @@
+/using-entire
+
+---
+
+can i start from a trail?
+
+---
+
+there is a trail at https://entire.com/gh/artsy/-/trails/2 can you see it?
+
+---
+
+ignore our usual gh projects flow for this session, we are trying out entire.com's workflow
+
+---
+
+<task-notification>
+<task-id>a638324b84d7d280b</task-id>
+<tool-use-id>toolu_01S9fCyT4G7AWKUwUfEU1cx9</tool-use-id>
+<output-file>/private/tmp/claude-503/-Users-roop-src-artsy-atelier/315fd13b-ab1e-49a6-a43d-c34c996bce58/tasks/a638324b84d7d280b.output</output-file>
+<status>completed</status>
+<summary>Agent "Explore /sites and S3 code" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>The app uses the **Pages Router**, not the App Router. Pages and API routes are `src/pages/**/*.page.ts(x)`, set by `pageExtensions` in `/Users/roop/src/artsy/atelier/next.config.js:12`. There is no `app/` directory and no `middleware.ts` or `proxy.ts`. A download endpoint would therefore be a Pages API route, e.g. `/Users/roop/src/artsy/atelier/src/pages/api/sites/[slug]/download.page.ts` (my suggestion; it doesn't exist yet). It would stream the zip through `res`.
+
+## 1. The /sites page
+- **Page:** `/Users/roop/src/artsy/atelier/src/pages/sites.page.tsx`
+  - `getServerSideProps` (lines 124-136) calls `listSites(getS3Client(), s3Bucket, sort)` and maps each result through `toSiteListing`.
+  - Props are `{ sites: SiteListing[]; sort: SiteSort; view: "list" | "grid" }` (lines 33-37).
+  - The view defaults to grid; `?view=list` switches to the table (`parseView`, line 50).
+  - Grid view renders `&lt;SiteCard&gt;` in a `&lt;ul&gt;` (lines 188-204). List view renders `&lt;SiteTable sites={sites} /&gt;` (line 206). If the download should also appear in grid view, `SiteCard.tsx` needs it too.
+- **Table:** `/Users/roop/src/artsy/atelier/src/components/SiteTable.tsx`
+  - It's a styled `&lt;table&gt;`. The `&lt;thead&gt;` is visually hidden but still read by screen readers (lines 22-29).
+  - Headings are hard-coded at line 56: `["Preview", "Slug", "Uploaded by", "Uploaded"]`.
+  - Each row has four `Cell`s: thumbnail, slug link via `SiteLink`, uploader, and a right-aligned relative time (lines 68-107).
+  - `Cell` has `&amp;:last-child { padding-right: 0 }` (lines 31-40), so a new last column takes over that rule.
+- **Row types:**
+  - `SiteInfo { slug; uploadedBy?; uploadedAt? }` in `/Users/roop/src/artsy/atelier/src/lib/sites.ts:5-9`.
+  - `SiteListing extends SiteInfo { url; thumbnailUrl }` in `/Users/roop/src/artsy/atelier/src/lib/siteListing.ts:4-7`.
+  - `toSiteListing` (siteListing.ts:27) builds the URLs. Thumbnail URLs are `/api/thumbnails/${slug}?v=&lt;uploadedAt&gt;`. A `downloadUrl` field could be added the same way, or built inline in the component.
+
+## 2. S3 access layer
+- **Client setup:** `/Users/roop/src/artsy/atelier/src/lib/deps.ts`
+  - Module-level singletons: `getConfig()` and `getS3Client()` (a `new S3Client({ region })`), plus `getCloudFrontClient()`.
+  - `resetDeps()` exists for tests.
+- **`/Users/roop/src/artsy/atelier/src/lib/s3.ts`.** Every function takes `(client, bucket, slug, ...)`.
+  - `listPrefix(client, bucket, slug): Promise&lt;string[]&gt;` (lines 59-84): paginated `ListObjectsV2` with `Prefix: \`${slug}/\``. It returns full keys including the `slug/` prefix.
+  - `headIndex` (35-57) reads `uploaded-by` and `uploaded-at` metadata from `${slug}/index.html`.
+  - `listSlugs` (86-110) lists with delimiter `/` and drops anything `validateSlug` rejects.
+  - `deletePrefix` (112-142).
+  - `putFile` (144-168) writes key `${slug}/${path}` with metadata.
+  - `putThumbnail` and `getThumbnail` (170-202) use `_thumbnails/${slug}.jpg`. That's outside the slug prefix (lines 29-33), so `listPrefix` won't include thumbnails in a download.
+- **There is no general get-object function.** `getThumbnail` is the only `GetObjectCommand` user, and it buffers with `Body.transformToByteArray()`. For streaming, a new helper such as `getObjectStream(client, bucket, key)` would return `Body` as a Node `Readable`. `isNotFound` (lines 19-27) can be reused.
+- **Upload and unzip:** `/Users/roop/src/artsy/atelier/src/lib/zip.ts`
+  - Uses **`unzipper`** (`unzipper.Parse()` on a stream, line 35).
+  - `extractZip(source, maxTotalBytes)` buffers every entry into `{ path, content: Buffer }[]`, rejects zip-slip paths (`normalizeEntryPath`, lines 12-29), and enforces a byte limit.
+  - `normalizeZipEntries` strips macOS junk, removes a common root folder, and copies a sole root `.html` file to `index.html`.
+- **Upload flow:**
+  - Busboy streams the multipart request into `extractZip` (`/Users/roop/src/artsy/atelier/src/lib/parseUpload.ts`).
+  - `/Users/roop/src/artsy/atelier/src/pages/api/upload.page.ts` then validates, deletes the prefix, calls `putFile` per entry, and invalidates CloudFront.
+  - When `index.html` is an alias, it's stored as an extra copy with `aliased-from` metadata (lines 155-164). A download will therefore include both `index.html` and the original file.
+
+## 3. API routes and auth
+- **Routes:** `/Users/roop/src/artsy/atelier/src/pages/api/`
+  - `check.page.ts`, `sites.page.ts`, `status.page.ts`, `upload.page.ts`, `thumbnails/[slug].page.ts`.
+  - All use `(req: NextApiRequest, res: NextApiResponse)` wrapped in `withErrorHandler`.
+- **Template to copy:** `/Users/roop/src/artsy/atelier/src/pages/api/thumbnails/[slug].page.ts`
+  - Returns 405 for any method other than GET.
+  - Reads the slug with `typeof req.query.slug === "string" ? ... : ""`, then calls `validateSlug` and returns 400 if it fails.
+  - Calls `getS3Client()` and `getConfig().s3Bucket`, sets headers, and sends the response.
+- **`withErrorHandler`** (`/Users/roop/src/artsy/atelier/src/middleware/withErrorHandler.ts`) returns a JSON 500. If headers were already sent it just calls `res.end()` (lines 10-12). That matters for streaming: an error mid-stream leaves a truncated zip, not an error response.
+- **Auth is not enforced in app code.** Cloudflare Access protects all of `*.artsy.dev` at the edge (`/Users/roop/src/artsy/atelier/docs/ARCHITECTURE.md:43-51`). The app only reads the `Cf-Access-Authenticated-User-Email` header, falling back to `X-Requested-By`, and uses it for attribution, never for access control. This uses `getHeader` in `/Users/roop/src/artsy/atelier/src/lib/getHeader.ts`, called at upload.page.ts:127-138. A download route under `/api/` gets the same edge protection with no extra code. If you want logging, copy upload's pattern: `console.log(JSON.stringify({ event: ... }))`.
+
+## 4. Testing conventions
+- **Jest:** `/Users/roop/src/artsy/atelier/jest.config.js` has two projects.
+  - **node** (ts-jest) runs `*.test.ts`.
+  - **jsdom** (next/jest) runs `*.test.tsx`.
+  - `clearMocks: true` in both. `/Users/roop/src/artsy/atelier/jest.setup.js` imports `@testing-library/jest-dom`.
+- **S3 mocking:**
+  - Lib-level tests use **`aws-sdk-client-mock`**, e.g. `/Users/roop/src/artsy/atelier/src/lib/s3.test.ts`: `mockClient(S3Client)`, `s3Mock.reset()` in `beforeEach`, then `.on(ListObjectsV2Command).resolves(...)`.
+  - Route tests don't touch the SDK. They `jest.mock("../../lib/s3")` (automock) and mock `getS3Client`/`getConfig` while keeping the real `resetDeps` via `jest.requireActual`.
+- **Route handler tests:**
+  - Simple routes use `node-mocks-http` `createMocks`. See `/Users/roop/src/artsy/atelier/src/pages/api/thumbnails/[slug].page.test.ts`: `await handler(req, res)`, then assert with `res._getStatusCode()`, `res.getHeader(...)`, `res._getData()`.
+  - Streaming routes use `supertest` against a real http server from `createTestServer(handler)` in `/Users/roop/src/artsy/atelier/src/lib/testApiRouteHandler.ts`, as in `/Users/roop/src/artsy/atelier/src/pages/api/upload.page.test.ts`. That fits best for asserting a streamed zip body: `.buffer(true)`, then parse the result with `unzipper`.
+- **UI tests:** Testing Library with `renderWithBoot` from `/Users/roop/src/artsy/atelier/src/test/renderWithBoot.tsx`.
+  - `/Users/roop/src/artsy/atelier/src/components/SiteTable.test.tsx` asserts the exact header list (lines 42-53) and the exact cell text per row (lines 72-82). **Both assertions need updating** when a column is added.
+  - `/Users/roop/src/artsy/atelier/src/pages/sites.page.test.tsx` mocks `../lib/sites` and `../lib/deps`.
+- **Zip fixtures:** `/Users/roop/src/artsy/atelier/src/lib/zip.test.ts` builds zip bytes by hand with its own CRC32 helper, because no zip-writing library is installed.
+
+## 5. Dependencies (`/Users/roop/src/artsy/atelier/package.json`)
+- `@aws-sdk/client-s3` and `@aws-sdk/client-cloudfront` ^3.1088.0.
+- `unzipper` ^0.12.5, read-only use, with `@types/unzipper`.
+- `busboy`, `mime-types`, `next` ^16.3.6, `react` 19.
+- Dev: `aws-sdk-client-mock` ^4.1.0, `supertest`, `node-mocks-http`, `jest` 30, `ts-jest`, Testing Library (react, dom, user-event, jest-dom).
+- **No zip writer is installed** (no archiver, jszip, fflate, yazl or adm-zip). You'd need to add one, e.g. `archiver` plus `@types/archiver`, or `yazl`, for streaming output.
+
+## 6. Slug validation
+- `/Users/roop/src/artsy/atelier/src/lib/slug.ts` exports `validateSlug(slug): { valid; error? }`.
+  - Pattern `/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/` plus a reserved-name list.
+  - It runs in both server and browser.
+- **Gotcha:** `gallery` is a reserved slug (slug.ts:20), yet the `SiteTable` and sites page test fixtures use `gallery`. That's harmless for UI tests, but a download-route test with `gallery` would get a 400.
+
+For the download handler you'll also need `Content-Type: application/zip` and `Content-Disposition: attachment; filename="&lt;slug&gt;.zip"`. Nothing in the repo sets either today. Since this is the Pages Router, read the Next 16 docs on API routes and response helpers under `node_modules/next/dist/docs/` before writing it, as `CLAUDE.md` says to.</result>
+<usage><subagent_tokens>70815</subagent_tokens><tool_uses>5</tool_uses><duration_ms>52530</duration_ms></usage>
+</task-notification>
