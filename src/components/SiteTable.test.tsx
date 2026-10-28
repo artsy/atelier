@@ -38,7 +38,7 @@ function rowFor(slug: string): HTMLElement {
 }
 
 describe("SiteTable", () => {
-  it("has a column each for preview, slug, uploader and upload time", () => {
+  it("has a column each for preview, slug, uploader, upload time and download", () => {
     renderWithBoot(<SiteTable sites={sites} />);
 
     expect(screen.getByRole("table")).toBeInTheDocument();
@@ -47,6 +47,7 @@ describe("SiteTable", () => {
       "Slug",
       "Uploaded by",
       "Uploaded",
+      "Download",
     ]);
     expect(screen.getAllByRole("row")).toHaveLength(sites.length + 1);
   });
@@ -76,6 +77,7 @@ describe("SiteTable", () => {
       "gallery",
       "somebody@artsymail.com",
       "2 days ago",
+      "Download",
     ]);
   });
 
@@ -95,12 +97,12 @@ describe("SiteTable", () => {
       within(rowFor("no-meta"))
         .getAllByRole("cell")
         .map((cell) => cell.textContent),
-    ).toEqual(["", "no-meta", "—", "—"]);
+    ).toEqual(["", "no-meta", "—", "—", "Download"]);
     expect(
       within(rowFor("anon"))
         .getAllByRole("cell")
         .map((cell) => cell.textContent),
-    ).toEqual(["", "anon", "—", "yesterday"]);
+    ).toEqual(["", "anon", "—", "yesterday", "Download"]);
   });
 
   it("mutes the uploader and time", () => {
@@ -123,8 +125,26 @@ describe("SiteTable", () => {
     renderWithBoot(<SiteTable sites={sites} />);
 
     const cells = within(rowFor("gallery")).getAllByRole("cell");
-    expect(cells[3]).toHaveStyle({ paddingRight: "0px" });
-    expect(cells[2]).not.toHaveStyle({ paddingRight: "0px" });
+    expect(cells[4]).toHaveStyle({ paddingRight: "0px" });
+    expect(cells[3]).not.toHaveStyle({ paddingRight: "0px" });
+  });
+
+  describe("download column", () => {
+    it("links each row to the site's zip download", () => {
+      renderWithBoot(<SiteTable sites={sites} />);
+
+      const link = within(rowFor("gallery")).getByRole("link", { name: "Download gallery" });
+      expect(link).toHaveAttribute("href", "/api/sites/gallery/download");
+      expect(link).toHaveAttribute("download");
+      expect(link).toHaveTextContent("Download");
+    });
+
+    it("downloads in place rather than opening a new tab", () => {
+      renderWithBoot(<SiteTable sites={sites} />);
+
+      const link = screen.getByRole("link", { name: "Download gallery" });
+      expect(link).not.toHaveAttribute("target");
+    });
   });
 
   describe("preview column", () => {
