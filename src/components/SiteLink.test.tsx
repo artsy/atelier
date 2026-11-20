@@ -27,11 +27,13 @@ describe("SiteLink", () => {
     expect(css()).toMatch(/:visited\{color:#1023d7;?\}/i);
   });
 
-  it("uses palette's light visited blue in the dark theme", () => {
-    mockColorScheme("dark");
+  it("uses palette's light visited blue under a dark color scheme media query", () => {
+    mockColorScheme("light");
     renderLink();
 
-    expect(css()).toMatch(/:visited\{color:#a2b1fb;?\}/i);
+    expect(css()).toMatch(
+      /@media \(prefers-color-scheme:\s*dark\)\{[^@]*:visited\{color:#a2b1fb;?\}/i,
+    );
   });
 
   it("underlines on hover even when it has no underline at rest", () => {
