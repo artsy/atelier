@@ -1,18 +1,21 @@
 import { Link, THEMES } from "@artsy/palette";
 import styled from "styled-components";
-import type { ColorScheme } from "../hooks/useColorScheme";
-import { useColorScheme } from "../hooks/useColorScheme";
 
 // Palette's visited blue (blue150) is nearly black in the light theme, so
 // visited links look unvisited there. blue100 stays distinct from text.
-const VISITED_TOKEN: Record<ColorScheme, "blue100" | "blue150"> = {
-  light: "blue100",
-  dark: "blue150",
-};
-
-const StyledLink = styled(Link)<{ $visitedColor: string }>`
+//
+// The scheme is picked by a media query rather than a JS prop: the server
+// always renders the light theme, and Safari doesn't restyle :visited when
+// the class changes at hydration, leaving dark-mode users with the light color.
+const StyledLink = styled(Link)`
   &:visited {
-    color: ${(props) => props.$visitedColor};
+    color: ${THEMES.light.colors.blue100};
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:visited {
+      color: ${THEMES.dark.colors.blue150};
+    }
   }
 
   &:hover {
@@ -21,6 +24,5 @@ const StyledLink = styled(Link)<{ $visitedColor: string }>`
 `;
 
 export function SiteLink(props: React.ComponentProps<typeof Link>) {
-  const scheme = useColorScheme();
-  return <StyledLink $visitedColor={THEMES[scheme].colors[VISITED_TOKEN[scheme]]} {...props} />;
+  return <StyledLink {...props} />;
 }
